@@ -44,7 +44,7 @@ pip install -e .[runtime]
 Single run pipeline (ClickHouse -> strategy rules -> Kafka):
 
 ```bash
-strategy-engine --once --symbol BTCUSDT
+strategy-engine-factor --once --symbol BTCUSDT
 ```
 
 Or run through Python module directly:
@@ -56,7 +56,7 @@ python -m trading_engine --once --symbol BTCUSDT
 Stream mode (continuous evaluations):
 
 ```bash
-strategy-engine --stream --interval-seconds 1
+strategy-engine-factor --stream --interval-seconds 1
 ```
 
 Environment settings from `.env` or shell variables:

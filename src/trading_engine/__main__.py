@@ -1,4 +1,4 @@
-from trading_engine.app.run_strategy_engine import main
+from trading_engine.app.run_strategy_engine_factor import run
 
 if __name__ == "__main__":
-    main()
+    run()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
+from trading_engine.common.logger import configure_logging, get_logger
 
 from trading_engine.strategy.interfaces import StrategyRule
 from trading_engine.strategy.models import (
@@ -12,6 +13,7 @@ from trading_engine.strategy.models import (
 
 class MarketDataFreshnessRule(StrategyRule):
     def __init__(self, max_age_seconds: int) -> None:
+        self.logger = get_logger(__name__)
         self._max_age = timedelta(seconds=max_age_seconds)
         self._cst = timezone(timedelta(hours=8))
 
@@ -26,6 +28,7 @@ class MarketDataFreshnessRule(StrategyRule):
         else:
             data_time = context.market_tick.timestamp
 
+        self.logger.debug("Evaluating market data freshness rule: now=%s, data_time=%s", context.now, data_time)
         now_cst = self._to_cst(context.now)
         data_time_cst = self._to_cst(data_time)
         age = now_cst - data_time_cst

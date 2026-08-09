@@ -1,0 +1,42 @@
+section,type,condition,action,notes
+Long Entry,Long Entry,"trend_score_p >= 50 for 2 consecutive bars","Open long","Strong trend confirmation only"
+Long Entry,Long Entry,"score_ema > 0 and score_dmi_adx > 0","Allow long","Structure and trend strength must align"
+Long Entry,Long Entry,"close > ema_12 > ema_26","Allow long","Price must be above bullish EMA structure"
+Long Entry,Long Entry,"adx_14 >= 20","Allow long","Trend strength should be sufficient"
+Long Entry,Long Entry,"score_rsi >= 0","Allow long","Momentum should not be clearly weak"
+Long Entry,Long Entry,"score_flow >= -5","Allow long","Avoid strong adverse flow"
+Long Entry,Long Entry,"score_funding >= 0","Allow long","Avoid clear funding headwind"
+Long Entry,Long Entry,"Core conditions satisfied","Execute long entry","Suggested core set: trend_score_p >= 50, score_ema > 0, score_dmi_adx > 0, close > ema_12 > ema_26"
+Short Entry,Short Entry,"trend_score_p <= -50 for 2 consecutive bars","Open short","Strong trend confirmation only"
+Short Entry,Short Entry,"score_ema < 0 and score_dmi_adx < 0","Allow short","Structure and trend strength must align"
+Short Entry,Short Entry,"close < ema_12 < ema_26","Allow short","Price must be below bearish EMA structure"
+Short Entry,Short Entry,"adx_14 >= 20","Allow short","Trend strength should be sufficient"
+Short Entry,Short Entry,"score_rsi <= 0","Allow short","Momentum should not be clearly strong"
+Short Entry,Short Entry,"score_flow <= 5","Allow short","Avoid strong adverse flow"
+Short Entry,Short Entry,"score_funding <= 0","Allow short","Avoid clear funding headwind"
+Short Entry,Short Entry,"Core conditions satisfied","Execute short entry","Suggested core set: trend_score_p <= -50, score_ema < 0, score_dmi_adx < 0, close < ema_12 < ema_26"
+Long Exit,Long Exit,"trend_score_p < 20","Close long","Trend strength has faded"
+Long Exit,Long Exit,"score_ema <= 0","Close long","Trend structure weakened"
+Long Exit,Long Exit,"close < ema_12","Close long","Price fell below short-term trend line"
+Long Exit,Long Exit,"trend_score_p declines for 2 consecutive bars","Reduce or close long","Momentum is losing steam"
+Long Exit,Long Exit,"trend_score_p <= -20","Reverse to short or force close long","Market entered a clear bearish zone"
+Short Exit,Short Exit,"trend_score_p > -20","Close short","Trend strength has faded"
+Short Exit,Short Exit,"score_ema >= 0","Close short","Trend structure strengthened"
+Short Exit,Short Exit,"close > ema_12","Close short","Price reclaimed short-term trend line"
+Short Exit,Short Exit,"trend_score_p rises for 2 consecutive bars","Reduce or close short","Short momentum is losing steam"
+Short Exit,Short Exit,"trend_score_p >= 20","Reverse to long or force close short","Market entered a clear bullish zone"
+Filter,Filter,"abs(trend_score_p) < 20","No trade","Sideways regime"
+Filter,Filter,"adx_14 < 15","No trade","Trend is too weak"
+Filter,Filter,"score_ema and score_dmi_adx conflict in direction","No trade","Direction is not aligned"
+Filter,Filter,"score_funding strongly conflicts with direction","Reduce size or skip","Crowded positioning can hurt expectancy"
+Filter,Filter,"score_flow strongly conflicts with direction","Skip","Flow and trend disagreement often reduces win rate"
+Minimal Executable Version,,,
+Long entry,,,"trend_score_p >= 50 for 2 consecutive bars; score_ema > 0; score_dmi_adx > 0; close > ema_12 > ema_26; adx_14 >= 20",""
+Long exit,,,"trend_score_p < 20; score_ema <= 0; close < ema_12; or 2-bar weakening",""
+Short entry,,,"trend_score_p <= -50 for 2 consecutive bars; score_ema < 0; score_dmi_adx < 0; close < ema_12 < ema_26; adx_14 >= 20",""
+Short exit,,,"trend_score_p > -20; score_ema >= 0; close > ema_12; or 2-bar strengthening",""
+Practical Notes,,,
+- Do not trade when abs(trend_score_p) < 20,,,
+- Prefer confirmation over prediction,,,
+- Use funding and flow as risk filters, not primary entry signals,,,
+- For 1m data, require persistence across at least 2 bars,,,

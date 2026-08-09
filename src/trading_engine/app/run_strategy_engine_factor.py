@@ -55,6 +55,21 @@ def parse_timestamp(raw_timestamp: Any) -> datetime:
 
 def row_to_context(row: dict[str, Any]) -> FactorStrategyContext:
     open_time = parse_timestamp(row["open_time"])
+    trend_score_p = float(
+        row.get(
+            "trend_score_p",
+            (
+                float(row["score_ema"])
+                + float(row["score_dmi_adx"])
+                + float(row["score_rsi"])
+                + float(row["score_flow"])
+                + float(row["score_funding"])
+            )
+            / 5.0
+            * 100.0,
+        )
+    )
+
     snapshot = MarketFactorSnapshot(
         symbol=str(row["symbol"]),
         interval=str(row["interval"]),
@@ -73,6 +88,7 @@ def row_to_context(row: dict[str, Any]) -> FactorStrategyContext:
         score_rsi=float(row["score_rsi"]),
         score_flow=float(row["score_flow"]),
         score_funding=float(row["score_funding"]),
+        trend_score_p=trend_score_p,
     )
 
     now = datetime.now(UTC)
@@ -123,10 +139,11 @@ def evaluate_once(
                 "metadata": decision.signal.metadata,
             },
         }
-    print(json.dumps(payload, ensure_ascii=True))
+    LOGGER.debug("Strategy evaluation result: %s", payload)
+    # print(json.dumps(payload, ensure_ascii=True))
 
 
-def main() -> None:
+def run() -> None:
     configure_logging()
     parser = build_parser()
     args = parser.parse_args()
@@ -161,4 +178,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run()

@@ -61,7 +61,7 @@ class ClickHouseMarketDataSource:
             query = (
                 "SELECT symbol, interval, open_time, close, "
                 "ema_12, ema_26, rsi_14, adx_14, plus_di, minus_di, taker_buy_ratio, funding_rate, "
-                "score_ema, score_dmi_adx, score_rsi, score_flow, score_funding "
+                "score_ema, score_dmi_adx, score_rsi, score_flow, score_funding, trend_score_p "
                 f"FROM {self._table} "
                 f"{where_clause} "
                 "ORDER BY open_time DESC LIMIT 1"

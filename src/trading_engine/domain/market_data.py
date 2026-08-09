@@ -40,3 +40,4 @@ class MarketFactorSnapshot:
     score_rsi: float
     score_flow: float
     score_funding: float
+    trend_score_p: float
