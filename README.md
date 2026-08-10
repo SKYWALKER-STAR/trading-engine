@@ -20,6 +20,7 @@ Implemented in this repository:
 - Strategy domain models (market tick, strategy signal, strategy context)
 - Strategy rules pipeline
 - Strategy algorithm protocol and a sample momentum strategy
+- Position manager state machine and repository abstraction
 - In-memory event bus abstraction
 - Bootstrap wiring for the strategy engine
 - Unit tests for core behavior
@@ -82,10 +83,38 @@ src/trading_engine/
   config/       # runtime settings
   domain/       # core market and event models
   infra/        # infrastructure adapters
+  position/     # event-driven position state machine
   strategy/     # strategy engine and strategy logic
 tests/unit/     # focused unit tests
 docs/           # architecture notes
 ```
+
+## Position Manager
+
+The position manager is designed as an event-driven state machine:
+
+1. `StrategySignal` enters `PositionManager`
+2. `PositionManager` updates position lifecycle state
+3. `PositionManager` emits `TradeAction`
+4. Risk / Order engines consume `TradeAction`
+5. Binance order updates are fed back as `PositionOrderEvent`
+6. `PositionManager` transitions from request state to opening/closing and finally to stable long/short/flat state
+
+State layers:
+
+- Direction: `flat`, `long`, `short`
+- Lifecycle: `flat`, `open_long`, `opening_long`, `long`, `close_long`, `closing_long`, `open_short`, `opening_short`, `short`, `close_short`, `closing_short`
+
+Repository abstraction:
+
+- `PositionManager`
+- `PositionRepository`
+- `RedisPositionRepository`
+
+Redis configuration:
+
+- `POSITION_REDIS_URL`
+- `POSITION_REDIS_KEY_PREFIX`
 
 ## Next Steps
 
