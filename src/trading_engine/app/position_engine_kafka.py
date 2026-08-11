@@ -96,6 +96,7 @@ class PositionEngineMessageProcessor:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
         payload = cast(StrategySignalPayload, event.payload)
+        LOGGER.info("Handling strategy signal: %s", payload)
         self._manager.handle_signal(_to_position_signal_command(payload))
 
     def handle_order_update(self, event: EngineEvent[Any]) -> None:
