@@ -7,12 +7,6 @@ from trading_engine.contracts.messages import SignalDirection
 from trading_engine.domain.market_data import MarketFactorSnapshot, MarketTick
 
 
-class SignalDirection(str, Enum):
-    LONG = "long"
-    SHORT = "short"
-    FLAT = "flat"
-
-
 @dataclass(frozen=True, slots=True)
 class StrategySignal:
     strategy_name: str
