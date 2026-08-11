@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-from trading_engine.strategy.models import SignalDirection, StrategySignal
+from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
 
 
 class PositionDirection(str, Enum):
@@ -59,7 +59,7 @@ class TradeAction:
     side: str
     created_at: datetime
     quantity: float | None = None
-    signal: StrategySignal | None = None
+    signal: PositionSignalCommand | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
 

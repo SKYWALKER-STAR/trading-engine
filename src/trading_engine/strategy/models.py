@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 
+from trading_engine.contracts.messages import SignalDirection
 from trading_engine.domain.market_data import MarketFactorSnapshot, MarketTick
 
 

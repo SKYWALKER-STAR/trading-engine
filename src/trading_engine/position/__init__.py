@@ -1,5 +1,6 @@
 """Position management engine."""
 
+from trading_engine.contracts.messages import PositionSignalCommand
 from trading_engine.position.manager import PositionManager
 from trading_engine.position.models import (
     OrderUpdateStatus,
@@ -19,6 +20,7 @@ __all__ = [
     "PositionDirection",
     "PositionLifecycle",
     "PositionManager",
+    "PositionSignalCommand",
     "PositionOrderEvent",
     "PositionRepository",
     "PositionState",

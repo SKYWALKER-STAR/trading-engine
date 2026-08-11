@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
 from trading_engine.infra.bus.base import EventBus
 from trading_engine.position.models import (
     OrderUpdateStatus,
@@ -17,7 +18,6 @@ from trading_engine.position.models import (
     make_flat_position,
 )
 from trading_engine.position.repository import PositionRepository
-from trading_engine.strategy.models import SignalDirection, StrategySignal
 
 
 class PositionManager:
@@ -35,7 +35,7 @@ class PositionManager:
         self._state_topic = state_topic
         self._action_topic = action_topic
 
-    def handle_signal(self, signal: StrategySignal) -> PositionDecision:
+    def handle_signal(self, signal: PositionSignalCommand) -> PositionDecision:
         current = self._load(signal.symbol, signal.timestamp)
         next_state = current
         trade_action: TradeAction | None = None
@@ -147,7 +147,12 @@ class PositionManager:
         return self._repository.get(symbol) or make_flat_position(symbol, now)
 
     @staticmethod
-    def _transition(current: PositionState, lifecycle: PositionLifecycle, now: datetime, signal: StrategySignal) -> PositionState:
+    def _transition(
+        current: PositionState,
+        lifecycle: PositionLifecycle,
+        now: datetime,
+        signal: PositionSignalCommand,
+    ) -> PositionState:
         return PositionState(
             symbol=current.symbol,
             direction=current.direction,
@@ -221,7 +226,7 @@ class PositionManager:
         state: PositionState,
         action_type: TradeActionType,
         side: str,
-        signal: StrategySignal,
+        signal: PositionSignalCommand,
     ) -> TradeAction:
         return TradeAction(
             symbol=state.symbol,

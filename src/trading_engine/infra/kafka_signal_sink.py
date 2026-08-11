@@ -5,6 +5,8 @@ from os import getenv
 from typing import Any
 
 from trading_engine.common.logger import get_logger
+from trading_engine.contracts.messages import EngineEventType, StrategySignalPayload, build_event
+from trading_engine.contracts.serde import encode_event
 from trading_engine.strategy.models import StrategySignal
 
 
@@ -41,19 +43,24 @@ class KafkaSignalSink:
 
     def publish(self, signal: StrategySignal) -> None:
         producer = self._get_producer()
-        payload = {
-            "strategy_name": signal.strategy_name,
-            "symbol": signal.symbol,
-            "direction": signal.direction.value,
-            "score": signal.score,
-            "confidence": signal.confidence,
-            "timestamp": signal.timestamp.isoformat(),
-            "metadata": signal.metadata,
-        }
+        event = build_event(
+            EngineEventType.STRATEGY_SIGNAL_GENERATED,
+            StrategySignalPayload(
+                strategy_name=signal.strategy_name,
+                symbol=signal.symbol,
+                direction=signal.direction.value,
+                score=signal.score,
+                confidence=signal.confidence,
+                timestamp=signal.timestamp,
+                metadata=dict(signal.metadata),
+            ),
+            producer="strategy-engine",
+            occurred_at=signal.timestamp,
+        )
         future = producer.send(
             topic=self._topic,
             key=signal.symbol.encode("utf-8"),
-            value=payload,
+            value=encode_event(event),
         )
         future.get(timeout=10)
         LOGGER.info(
@@ -74,7 +81,7 @@ class KafkaSignalSink:
 
         self._producer = KafkaProducer(
             bootstrap_servers=self._bootstrap_servers,
-            value_serializer=lambda value: json.dumps(value, ensure_ascii=True).encode("utf-8"),
+            value_serializer=lambda value: value,
             acks=self._acks,
         )
         LOGGER.info(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
 from trading_engine.position.manager import PositionManager
 from trading_engine.position.models import (
     OrderUpdateStatus,
@@ -12,7 +13,6 @@ from trading_engine.position.models import (
     PositionState,
     TradeActionType,
 )
-from trading_engine.strategy.models import SignalDirection, StrategySignal
 
 
 @dataclass
@@ -26,8 +26,8 @@ class InMemoryPositionRepository:
         self.state[state.symbol] = state
 
 
-def build_signal(direction: SignalDirection, now: datetime) -> StrategySignal:
-    return StrategySignal(
+def build_signal(direction: SignalDirection, now: datetime) -> PositionSignalCommand:
+    return PositionSignalCommand(
         strategy_name="factor_score",
         symbol="BTCUSDT",
         direction=direction,
