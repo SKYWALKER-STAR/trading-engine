@@ -143,10 +143,10 @@ def evaluate_once(
     # print(json.dumps(payload, ensure_ascii=True))
 
 
-def run() -> None:
+def run(argv: list[str] | None = None) -> None:
     configure_logging()
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     settings = StrategyEngineSettings.from_env()
     engine = build_strategy_engine(

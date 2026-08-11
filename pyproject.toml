@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
+trading-engine = "trading_engine.__main__:main"
 strategy-engine-factor = "trading_engine.app.run_strategy_engine_factor:run"
 position-engine = "trading_engine.app.run_position_engine:run"
 #strategy-engine-market-tick = "trading_engine.app.run_strategy_engine_factor:main"

@@ -50,16 +50,47 @@ Single run pipeline (ClickHouse -> strategy rules -> Kafka):
 strategy-engine-factor --once --symbol BTCUSDT
 ```
 
-Or run through Python module directly:
+Or use the unified engine router:
 
 ```bash
-python -m trading_engine --once --symbol BTCUSDT
+python -m trading_engine strategy -- --once --symbol BTCUSDT
+```
+
+Installed script form:
+
+```bash
+trading-engine strategy -- --once --symbol BTCUSDT
 ```
 
 Stream mode (continuous evaluations):
 
 ```bash
 strategy-engine-factor --stream --interval-seconds 1
+```
+
+Strategy engine command-line arguments:
+
+- `--symbol <SYMBOL>`: optional symbol filter for ClickHouse query, default `None`
+- `--once`: run a single evaluation cycle and exit
+- `--stream`: run continuously
+- `--interval-seconds <FLOAT>`: evaluation interval used in stream mode, default `1.0`
+
+Behavior notes:
+
+- If `--stream` is not provided, the runner executes once and exits.
+- `--once` is optional and also forces single-run behavior.
+
+Strategy engine startup examples:
+
+```bash
+# Single run for all symbols
+python -m trading_engine strategy
+
+# Single run for one symbol
+python -m trading_engine strategy -- --once --symbol BTCUSDT
+
+# Continuous mode every 2 seconds
+python -m trading_engine strategy -- --stream --interval-seconds 2
 ```
 
 Environment settings from `.env` or shell variables:
@@ -85,6 +116,26 @@ The position engine is designed to run as its own process and consume Kafka cont
 position-engine
 ```
 
+Or through the unified router:
+
+```bash
+python -m trading_engine position
+```
+
+Position engine command-line arguments:
+
+- None currently. The runner only accepts default help parsing and starts directly.
+
+Position engine startup examples:
+
+```bash
+# Unified router
+python -m trading_engine position
+
+# Direct script
+position-engine
+```
+
 Position engine input topics:
 
 - `strategy.signal.generated.v1`
@@ -104,6 +155,11 @@ Position engine settings:
 - `POSITION_TRADE_ACTION_TOPIC`
 - `POSITION_REDIS_URL`
 - `POSITION_REDIS_KEY_PREFIX`
+
+Position engine required runtime dependencies:
+
+- Kafka cluster reachable through `KAFKA_BOOTSTRAP_SERVERS`
+- Redis reachable through `POSITION_REDIS_URL`
 
 ## Repository Layout
 
@@ -175,6 +231,37 @@ Shared command model for position domain:
 - `PositionOrderEvent`: the order/execution feedback input that advances lifecycle state
 
 See `src/trading_engine/contracts/messages.py` for payload schemas and `src/trading_engine/contracts/serde.py` for wire encoding.
+
+## Unified Engine CLI
+
+List available engines:
+
+```bash
+python -m trading_engine --list-engines
+```
+
+Pattern:
+
+```bash
+python -m trading_engine <engine-name> -- <engine-specific-args>
+```
+
+CLI arguments:
+
+- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`)
+- `--list-engines`: print available engines and exit
+- `<engine-specific-args>`: forwarded to the selected engine runner after `--`
+
+Examples:
+
+- `python -m trading_engine strategy -- --stream --interval-seconds 1`
+- `python -m trading_engine position`
+
+How to add a new engine while preserving this workflow:
+
+1. Add a runner function `run(argv: list[str] | None = None)` in `src/trading_engine/app/`.
+2. Register it once in `src/trading_engine/app/engine_registry.py` via a new `EngineSpec`.
+3. Optionally expose a dedicated script in `pyproject.toml` under `[project.scripts]`.
 
 ## Next Steps
 

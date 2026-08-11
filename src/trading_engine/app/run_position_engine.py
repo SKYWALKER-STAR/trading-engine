@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+
 from trading_engine.app.position_engine_kafka import build_position_engine_consumer
 from trading_engine.common.logger import configure_logging, get_logger
 from trading_engine.config.settings import PositionEngineSettings
@@ -9,7 +11,10 @@ from trading_engine.infra.redis_position_repository import RedisPositionReposito
 LOGGER = get_logger(__name__)
 
 
-def run() -> None:
+def run(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run the position engine")
+    parser.parse_args(argv)
+
     configure_logging()
     settings = PositionEngineSettings.from_env()
     repository = RedisPositionRepository.from_env()
