@@ -23,6 +23,7 @@ Implemented in this repository:
 - Shared Kafka message contracts with versioned envelopes
 - Position manager state machine and repository abstraction
 - Kafka publisher / consumer skeleton for independent engine processes
+- Redis raw->view projector skeleton for position state interoperability
 - In-memory event bus abstraction
 - Bootstrap wiring for the strategy engine
 - Unit tests for core behavior
@@ -161,6 +162,40 @@ Position engine required runtime dependencies:
 - Kafka cluster reachable through `KAFKA_BOOTSTRAP_SERVERS`
 - Redis reachable through `POSITION_REDIS_URL`
 
+## Start The Position View Projector
+
+The position view projector reads Binance raw Redis snapshots and projects them into
+trading-engine view keys so the position domain can consume normalized state.
+
+Direct script:
+
+```bash
+position-view-projector --once
+```
+
+Unified router:
+
+```bash
+python -m trading_engine position-projector -- --once
+```
+
+Stream mode:
+
+```bash
+python -m trading_engine position-projector -- --stream --interval-seconds 2
+```
+
+Projector settings:
+
+- `POSITION_VIEW_REDIS_URL` (fallback to `POSITION_REDIS_URL`)
+- `POSITION_VIEW_KEY_PREFIX` (default `binance:position:usdt_futures`)
+- `POSITION_VIEW_POLL_INTERVAL_SECONDS` (default `2.0`)
+- `POSITION_VIEW_ENABLE_DETAIL_KEYS` (`true` / `false`, default `true`)
+
+Redis key model reference:
+
+- [docs/position-redis-view-spec-v1.md](docs/position-redis-view-spec-v1.md)
+
 ## Repository Layout
 
 ```text
@@ -248,7 +283,7 @@ python -m trading_engine <engine-name> -- <engine-specific-args>
 
 CLI arguments:
 
-- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`)
+- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`, `position-projector`)
 - `--list-engines`: print available engines and exit
 - `<engine-specific-args>`: forwarded to the selected engine runner after `--`
 

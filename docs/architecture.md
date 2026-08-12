@@ -61,6 +61,8 @@ Versioning rule:
 
 ## PositionManager
 
+Redis position key and schema details are defined in [position-redis-view-spec-v1.md](position-redis-view-spec-v1.md).
+
 ```
                 PositionManager
                       │

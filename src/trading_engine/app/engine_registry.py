@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from trading_engine.app.run_position_engine import run as run_position_engine
+from trading_engine.app.run_position_view_projector import run as run_position_view_projector
 from trading_engine.app.run_strategy_engine_factor import run as run_strategy_engine_factor
 
 
@@ -30,6 +31,11 @@ def get_engine_specs() -> dict[str, EngineSpec]:
             name="position",
             description="Run Kafka-backed position engine",
             runner=run_position_engine,
+        ),
+        EngineSpec(
+            name="position-projector",
+            description="Project Binance Redis raw snapshots into trading-engine view keys",
+            runner=run_position_view_projector,
         ),
     )
     return {spec.name: spec for spec in specs}
