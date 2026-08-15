@@ -6,6 +6,7 @@ from trading_engine.contracts.messages import (
     EngineEventType,
     PositionStatePayload,
     PositionStateSnapshot,
+    TradeActionFailedPayload,
     StrategySignalPayload,
     build_event,
 )
@@ -73,4 +74,29 @@ def test_position_state_event_round_trip() -> None:
 
     assert decoded.correlation_id == "corr-1"
     assert decoded.causation_id == "cause-1"
+    assert decoded.payload == payload
+
+
+def test_trade_action_failed_event_round_trip() -> None:
+    now = datetime(2026, 8, 11, 10, 2, tzinfo=UTC)
+    payload = TradeActionFailedPayload(
+        symbol="BTCUSDT",
+        status="rejected",
+        reason="order_rejected",
+        failed_at=now,
+        order_id="ord-2",
+        state="opening_long",
+        metadata={"exchange_reason": "insufficient_margin"},
+    )
+    event = build_event(
+        EngineEventType.TRADE_ACTION_FAILED,
+        payload,
+        producer="position-engine",
+        occurred_at=now,
+        correlation_id="corr-2",
+    )
+
+    decoded = decode_event(encode_event(event))
+
+    assert decoded.event_type is EngineEventType.TRADE_ACTION_FAILED
     assert decoded.payload == payload

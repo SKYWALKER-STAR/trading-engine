@@ -13,6 +13,7 @@ from trading_engine.contracts.messages import (
     RiskAction,
     RiskDecisionPayload,
     StrategySignalPayload,
+    TradeActionFailedPayload,
     TradeActionPayload,
 )
 
@@ -82,6 +83,17 @@ def _decode_payload(event_type: EngineEventType, payload: dict[str, Any]) -> Any
             side=str(payload["side"]),
             requested_at=datetime.fromisoformat(payload["requested_at"]),
             quantity=None if payload.get("quantity") is None else float(payload["quantity"]),
+            state=None if payload.get("state") is None else str(payload["state"]),
+            metadata={key: value for key, value in payload.get("metadata", {}).items()},
+        )
+
+    if event_type is EngineEventType.TRADE_ACTION_FAILED:
+        return TradeActionFailedPayload(
+            symbol=str(payload["symbol"]),
+            status=str(payload["status"]),
+            reason=str(payload["reason"]),
+            failed_at=datetime.fromisoformat(payload["failed_at"]),
+            order_id=None if payload.get("order_id") is None else str(payload["order_id"]),
             state=None if payload.get("state") is None else str(payload["state"]),
             metadata={key: value for key, value in payload.get("metadata", {}).items()},
         )

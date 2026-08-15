@@ -10,6 +10,7 @@ from trading_engine.contracts.messages import (
     SignalDirection,
     StrategySignalPayload,
     TopicNames,
+    TradeActionFailedPayload,
     TradeActionPayload,
     build_event,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "SignalDirection",
     "StrategySignalPayload",
     "TopicNames",
+    "TradeActionFailedPayload",
     "TradeActionPayload",
     "build_event",
     "decode_event",

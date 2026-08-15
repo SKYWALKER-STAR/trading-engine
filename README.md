@@ -139,21 +139,25 @@ position-engine
 
 Position engine input topics:
 
-- `strategy.signal.generated.v1`
+- `risk.decision.made.v1`
 - `trade.order.update.received.v1`
 
 Position engine output topics:
 
 - `position.state.changed.v1`
 - `trade.action.requested.v1`
+- `trade.action.failed.v1`
 
 Position engine settings:
 
 - `POSITION_ENGINE_CONSUMER_GROUP`
-- `POSITION_SIGNAL_TOPIC`
+- `POSITION_RISK_DECISION_TOPIC` (preferred)
+- `POSITION_SIGNAL_TOPIC` (legacy fallback alias)
 - `POSITION_ORDER_UPDATE_TOPIC`
 - `POSITION_STATE_TOPIC`
 - `POSITION_TRADE_ACTION_TOPIC`
+- `POSITION_TRADE_ACTION_FAILED_TOPIC`
+- `POSITION_ORDER_UPDATE_TIMEOUT_SECONDS`
 - `POSITION_REDIS_URL`
 - `POSITION_REDIS_KEY_PREFIX`
 
@@ -161,6 +165,52 @@ Position engine required runtime dependencies:
 
 - Kafka cluster reachable through `KAFKA_BOOTSTRAP_SERVERS`
 - Redis reachable through `POSITION_REDIS_URL`
+
+## Start The Risk Engine
+
+The risk engine consumes strategy signals and position snapshots, then emits a risk decision event:
+
+```bash
+risk-engine
+```
+
+Or through the unified router:
+
+```bash
+python -m trading_engine risk
+```
+
+Risk engine command-line arguments:
+
+- None currently. The runner only accepts default help parsing and starts directly.
+
+Risk engine startup examples:
+
+```bash
+# Unified router
+python -m trading_engine risk
+
+# Direct script
+risk-engine
+```
+
+Risk engine input topics:
+
+- `strategy.signal.generated.v1`
+- `position.state.changed.v1`
+
+Risk engine output topics:
+
+- `risk.decision.made.v1`
+
+Risk engine settings:
+
+- `RISK_ENGINE_CONSUMER_GROUP`
+- `RISK_SIGNAL_TOPIC`
+- `RISK_POSITION_STATE_TOPIC`
+- `RISK_DECISION_TOPIC`
+- `RISK_REQUIRE_POSITION_SNAPSHOT`
+- `RISK_DEFAULT_OPEN_QUANTITY`
 
 ## Start The Position View Projector
 
@@ -215,12 +265,12 @@ docs/           # architecture notes
 The position manager is an event-driven state machine behind the Kafka-facing position engine process:
 
 1. Strategy engine publishes `strategy.signal.generated.v1`
-2. Position engine maps strategy signals into `PositionSignalCommand` and updates `PositionManager`
-3. Position engine publishes `trade.action.requested.v1`
-4. Trade engine publishes `trade.order.update.received.v1`
-5. Position engine feeds order updates back into `PositionManager`
-6. Position engine publishes `position.state.changed.v1`
-7. Risk engine consumes strategy signals plus position messages and produces downstream risk actions in its own process
+2. Risk engine consumes strategy signals plus position messages and publishes `risk.decision.made.v1`
+3. Position engine maps approved risk signals into `PositionSignalCommand` and updates `PositionManager`
+4. Position engine publishes `trade.action.requested.v1`
+5. Trade engine publishes `trade.order.update.received.v1`
+6. Position engine feeds order updates back into `PositionManager`
+7. Position engine publishes `position.state.changed.v1`
 
 State layers:
 
@@ -256,7 +306,9 @@ Envelope fields:
 Current topic map:
 
 - `strategy.signal.generated.v1`
+- `risk.decision.made.v1`
 - `trade.action.requested.v1`
+- `trade.action.failed.v1`
 - `trade.order.update.received.v1`
 - `position.state.changed.v1`
 
@@ -283,7 +335,7 @@ python -m trading_engine <engine-name> -- <engine-specific-args>
 
 CLI arguments:
 
-- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`, `position-projector`)
+- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`, `risk`, `position-projector`)
 - `--list-engines`: print available engines and exit
 - `<engine-specific-args>`: forwarded to the selected engine runner after `--`
 
@@ -301,6 +353,6 @@ How to add a new engine while preserving this workflow:
 ## Next Steps
 
 1. Add an application runner that consumes market feed and calls the strategy engine.
-2. Implement a dedicated risk engine process that consumes `strategy.signal.generated.v1` and `position.state.changed.v1` and emits risk actions.
-3. Implement a dedicated trade engine process that consumes `trade.action.requested.v1` and emits `trade.order.update.received.v1`.
+2. Implement a dedicated trade engine process that consumes `trade.action.requested.v1` and emits `trade.order.update.received.v1`.
+3. Extend risk rules with market snapshots and per-symbol policy plugins.
 4. Add integration tests for end-to-end replay across Kafka topics.

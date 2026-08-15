@@ -36,6 +36,7 @@ class TradeActionType(str, Enum):
 
 class OrderUpdateStatus(str, Enum):
     NEW = "new"
+    PARTIALLY_FILLED = "partially_filled"
     FILLED = "filled"
     CANCELED = "canceled"
     REJECTED = "rejected"
@@ -89,10 +90,21 @@ class TradeActionCreated:
 
 
 @dataclass(frozen=True, slots=True)
+class TradeActionFailed:
+    symbol: str
+    status: str
+    reason: str
+    occurred_at: datetime
+    order_id: str | None = None
+    state: PositionState | None = None
+    metadata: dict[str, str | float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class PositionDecision:
     state: PositionState
     trade_action: TradeAction | None = None
-    events: tuple[PositionStateChanged | TradeActionCreated, ...] = ()
+    events: tuple[PositionStateChanged | TradeActionCreated | TradeActionFailed, ...] = ()
 
 
 def make_flat_position(symbol: str, now: datetime) -> PositionState:

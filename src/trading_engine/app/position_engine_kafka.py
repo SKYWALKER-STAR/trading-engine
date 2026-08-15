@@ -11,9 +11,12 @@ from trading_engine.contracts.messages import (
     PositionStatePayload,
     PositionSignalCommand,
     PositionStateSnapshot,
+    RiskAction,
+    RiskDecisionPayload,
     SignalDirection,
     StrategySignalPayload,
     TopicNames,
+    TradeActionFailedPayload,
     TradeActionPayload,
     build_event,
 )
@@ -25,6 +28,7 @@ from trading_engine.position.models import (
     PositionOrderEvent,
     PositionStateChanged,
     TradeActionCreated,
+    TradeActionFailed,
 )
 from trading_engine.position.repository import PositionRepository
 
@@ -79,6 +83,24 @@ class PositionKafkaEventBus(EventBus):
             self._publisher.publish(self._settings.trade_action_topic, contract_event, key=event.action.symbol)
             return
 
+        if isinstance(event, TradeActionFailed):
+            contract_event = build_event(
+                EngineEventType.TRADE_ACTION_FAILED,
+                TradeActionFailedPayload(
+                    symbol=event.symbol,
+                    status=event.status,
+                    reason=event.reason,
+                    failed_at=event.occurred_at,
+                    order_id=event.order_id,
+                    state=None if event.state is None else event.state.lifecycle.value,
+                    metadata=dict(event.metadata),
+                ),
+                producer=self._producer_name,
+                occurred_at=event.occurred_at,
+            )
+            self._publisher.publish(self._settings.trade_action_failed_topic, contract_event, key=event.symbol)
+            return
+
         raise ValueError(f"Unsupported position event for Kafka publishing: {type(event)!r}")
 
     def subscribe(self, topic: str, handler: Any) -> None:
@@ -88,16 +110,53 @@ class PositionKafkaEventBus(EventBus):
 class PositionEngineMessageProcessor:
     """Consumes Kafka contracts and delegates to PositionManager."""
 
-    def __init__(self, manager: PositionManager) -> None:
+    def __init__(self, manager: PositionManager, *, order_update_timeout_seconds: float = 30.0) -> None:
         self._manager = manager
+        self._order_update_timeout_seconds = order_update_timeout_seconds
 
-    def handle_strategy_signal(self, event: EngineEvent[Any]) -> None:
-        if event.event_type is not EngineEventType.STRATEGY_SIGNAL_GENERATED:
+    def handle_risk_decision(self, event: EngineEvent[Any]) -> None:
+        if event.event_type is not EngineEventType.RISK_DECISION_MADE:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
-        payload = cast(StrategySignalPayload, event.payload)
-        LOGGER.info("Handling strategy signal: %s", payload)
-        self._manager.handle_signal(_to_position_signal_command(payload))
+        payload = cast(RiskDecisionPayload, event.payload)
+        recovered = self._manager.recover_stale_transition(
+            payload.symbol,
+            payload.decided_at,
+            self._order_update_timeout_seconds,
+        )
+        if recovered is not None:
+            LOGGER.warning(
+                "Recovered stale position transition before applying new risk decision",
+                extra={"symbol": payload.symbol, "reason": "order_timeout"},
+            )
+
+        if payload.action is RiskAction.REJECT:
+            LOGGER.info(
+                "Risk decision rejected; position state unchanged",
+                extra={"symbol": payload.symbol, "reason": payload.reason},
+            )
+            return
+
+        approved_signal = payload.approved_signal
+        if approved_signal is None:
+            LOGGER.warning(
+                "Risk decision accepted without approved signal; ignoring",
+                extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+            )
+            return
+
+        LOGGER.info(
+            "Handling risk-approved signal",
+            extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+        )
+        self._manager.handle_signal(
+            _to_position_signal_command(
+                approved_signal,
+                risk_action=payload.action.value,
+                risk_reason=payload.reason,
+                risk_decided_at=payload.decided_at.isoformat(),
+            )
+        )
 
     def handle_order_update(self, event: EngineEvent[Any]) -> None:
         if event.event_type is not EngineEventType.ORDER_UPDATE_RECEIVED:
@@ -132,19 +191,35 @@ def build_position_engine_consumer(
         ),
         state_topic=TopicNames.POSITION_STATE_CHANGED,
         action_topic=TopicNames.TRADE_ACTION_REQUESTED,
+        failed_action_topic=TopicNames.TRADE_ACTION_FAILED,
     )
-    processor = PositionEngineMessageProcessor(manager)
+    processor = PositionEngineMessageProcessor(
+        manager,
+        order_update_timeout_seconds=settings.order_update_timeout_seconds,
+    )
     consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group)
-    consumer.subscribe(settings.signal_topic, processor.handle_strategy_signal)
+    consumer.subscribe(settings.risk_decision_topic, processor.handle_risk_decision)
     consumer.subscribe(settings.order_update_topic, processor.handle_order_update)
     return consumer
 
 
 def _to_position_signal_command(
     signal_payload: StrategySignalPayload | PositionSignalCommand,
+    *,
+    risk_action: str | None = None,
+    risk_reason: str | None = None,
+    risk_decided_at: str | None = None,
 ) -> PositionSignalCommand:
     if isinstance(signal_payload, PositionSignalCommand):
         return signal_payload
+
+    metadata = dict(signal_payload.metadata)
+    if risk_action is not None:
+        metadata["risk_action"] = risk_action
+    if risk_reason is not None:
+        metadata["risk_reason"] = risk_reason
+    if risk_decided_at is not None:
+        metadata["risk_decided_at"] = risk_decided_at
 
     return PositionSignalCommand(
         strategy_name=signal_payload.strategy_name,
@@ -153,7 +228,7 @@ def _to_position_signal_command(
         score=signal_payload.score,
         confidence=signal_payload.confidence,
         timestamp=signal_payload.timestamp,
-        metadata=dict(signal_payload.metadata),
+        metadata=metadata,
     )
 
 

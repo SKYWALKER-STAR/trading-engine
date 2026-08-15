@@ -8,6 +8,8 @@ from trading_engine.contracts.messages import (
     EngineEventType,
     OrderUpdatePayload,
     PositionSignalCommand,
+    RiskAction,
+    RiskDecisionPayload,
     SignalDirection,
     StrategySignalPayload,
     build_event,
@@ -27,30 +29,60 @@ class InMemoryPositionRepository:
         self.state[state.symbol] = state
 
 
-def test_strategy_signal_drives_position_manager() -> None:
+def test_risk_approved_signal_drives_position_manager() -> None:
     now = datetime.now(UTC)
     repository = InMemoryPositionRepository(state={})
     manager = PositionManager(repository=repository)
     processor = PositionEngineMessageProcessor(manager)
     event = build_event(
-        EngineEventType.STRATEGY_SIGNAL_GENERATED,
-        StrategySignalPayload(
-            strategy_name="factor_score",
+        EngineEventType.RISK_DECISION_MADE,
+        RiskDecisionPayload(
             symbol="BTCUSDT",
-            direction="long",
-            score=90.0,
-            confidence=0.85,
-            timestamp=now,
+            action=RiskAction.APPROVE,
+            approved_signal=StrategySignalPayload(
+                strategy_name="factor_score",
+                symbol="BTCUSDT",
+                direction="long",
+                score=90.0,
+                confidence=0.85,
+                timestamp=now,
+            ),
+            reason="allow_open_long",
+            decided_at=now,
         ),
-        producer="strategy-engine",
+        producer="risk-engine",
         occurred_at=now,
         correlation_id="corr-1",
     )
 
-    processor.handle_strategy_signal(event)
+    processor.handle_risk_decision(event)
 
     saved_state = repository.state["BTCUSDT"]
     assert saved_state.lifecycle.value == "open_long"
+
+
+def test_risk_reject_does_not_drive_position_manager() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    processor = PositionEngineMessageProcessor(manager)
+    event = build_event(
+        EngineEventType.RISK_DECISION_MADE,
+        RiskDecisionPayload(
+            symbol="BTCUSDT",
+            action=RiskAction.REJECT,
+            approved_signal=None,
+            reason="already_long",
+            decided_at=now,
+        ),
+        producer="risk-engine",
+        occurred_at=now,
+        correlation_id="corr-1",
+    )
+
+    processor.handle_risk_decision(event)
+
+    assert repository.state == {}
 
 
 def test_order_update_event_advances_position_state() -> None:

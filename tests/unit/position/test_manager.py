@@ -11,6 +11,7 @@ from trading_engine.position.models import (
     PositionLifecycle,
     PositionOrderEvent,
     PositionState,
+    TradeActionFailed,
     TradeActionType,
 )
 
@@ -121,3 +122,88 @@ def test_long_signal_flat_generates_close_long_action() -> None:
     assert decision.trade_action.action_type is TradeActionType.CLOSE_LONG
     assert decision.state.direction is PositionDirection.LONG
     assert decision.state.lifecycle is PositionLifecycle.CLOSE_LONG
+
+
+def test_partially_filled_order_keeps_opening_state_and_updates_quantity() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-1",
+        )
+    )
+
+    decision = manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.PARTIALLY_FILLED,
+            updated_at=now + timedelta(seconds=2),
+            order_id="ord-1",
+            filled_quantity=0.10,
+        )
+    )
+
+    assert decision.state.direction is PositionDirection.LONG
+    assert decision.state.lifecycle is PositionLifecycle.OPENING_LONG
+    assert decision.state.quantity == 0.10
+
+
+def test_rejected_order_rolls_back_and_emits_failed_event() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-1",
+        )
+    )
+
+    decision = manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.REJECTED,
+            updated_at=now + timedelta(seconds=2),
+            order_id="ord-1",
+        )
+    )
+
+    assert decision.state.lifecycle is PositionLifecycle.FLAT
+    failed_events = [event for event in decision.events if isinstance(event, TradeActionFailed)]
+    assert len(failed_events) == 1
+    assert failed_events[0].status == "rejected"
+
+
+def test_recover_stale_transition_rolls_back_on_timeout() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-timeout",
+        )
+    )
+
+    decision = manager.recover_stale_transition(
+        symbol="BTCUSDT",
+        now=now + timedelta(seconds=40),
+        timeout_seconds=30.0,
+    )
+
+    assert decision is not None
+    assert decision.state.lifecycle is PositionLifecycle.FLAT
+    failed_events = [event for event in decision.events if isinstance(event, TradeActionFailed)]
+    assert len(failed_events) == 1
+    assert failed_events[0].status == "timed_out"

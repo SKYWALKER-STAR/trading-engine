@@ -14,6 +14,7 @@ from trading_engine.position.models import (
     PositionStateChanged,
     TradeAction,
     TradeActionCreated,
+    TradeActionFailed,
     TradeActionType,
     make_flat_position,
 )
@@ -29,11 +30,13 @@ class PositionManager:
         publisher: EventBus | None = None,
         state_topic: str = "position.state_changed",
         action_topic: str = "position.trade_action.created",
+        failed_action_topic: str = "position.trade_action.failed",
     ) -> None:
         self._repository = repository
         self._publisher = publisher
         self._state_topic = state_topic
         self._action_topic = action_topic
+        self._failed_action_topic = failed_action_topic
 
     def handle_signal(self, signal: PositionSignalCommand) -> PositionDecision:
         current = self._load(signal.symbol, signal.timestamp)
@@ -75,6 +78,7 @@ class PositionManager:
         current = self._load(event.symbol, event.updated_at)
         next_state = current
         reason = "order_event_ignored"
+        failed_action: TradeActionFailed | None = None
 
         if event.status is OrderUpdateStatus.NEW:
             if current.lifecycle is PositionLifecycle.OPEN_LONG:
@@ -137,11 +141,101 @@ class PositionManager:
             elif current.lifecycle is PositionLifecycle.CLOSING_SHORT:
                 next_state = make_flat_position(current.symbol, event.updated_at)
                 reason = "order_filled_close_short"
+        elif event.status is OrderUpdateStatus.PARTIALLY_FILLED:
+            filled_quantity = event.filled_quantity if event.filled_quantity is not None else current.quantity
+            if current.lifecycle is PositionLifecycle.OPENING_LONG:
+                next_state = self._update_state(
+                    current,
+                    direction=PositionDirection.LONG,
+                    lifecycle=PositionLifecycle.OPENING_LONG,
+                    quantity=filled_quantity,
+                    updated_at=event.updated_at,
+                    active_order_id=event.order_id,
+                )
+                reason = "order_partially_filled_open_long"
+            elif current.lifecycle is PositionLifecycle.OPENING_SHORT:
+                next_state = self._update_state(
+                    current,
+                    direction=PositionDirection.SHORT,
+                    lifecycle=PositionLifecycle.OPENING_SHORT,
+                    quantity=filled_quantity,
+                    updated_at=event.updated_at,
+                    active_order_id=event.order_id,
+                )
+                reason = "order_partially_filled_open_short"
+            elif current.lifecycle is PositionLifecycle.CLOSING_LONG:
+                remaining_quantity = max(current.quantity - filled_quantity, 0.0)
+                next_state = self._update_state(
+                    current,
+                    direction=PositionDirection.LONG,
+                    lifecycle=PositionLifecycle.CLOSING_LONG,
+                    quantity=remaining_quantity,
+                    updated_at=event.updated_at,
+                    active_order_id=event.order_id,
+                )
+                reason = "order_partially_filled_close_long"
+            elif current.lifecycle is PositionLifecycle.CLOSING_SHORT:
+                remaining_quantity = max(current.quantity - filled_quantity, 0.0)
+                next_state = self._update_state(
+                    current,
+                    direction=PositionDirection.SHORT,
+                    lifecycle=PositionLifecycle.CLOSING_SHORT,
+                    quantity=remaining_quantity,
+                    updated_at=event.updated_at,
+                    active_order_id=event.order_id,
+                )
+                reason = "order_partially_filled_close_short"
         elif event.status in (OrderUpdateStatus.CANCELED, OrderUpdateStatus.REJECTED):
             next_state = self._rollback(current, event.updated_at)
             reason = f"order_{event.status.value}"
+            failed_action = TradeActionFailed(
+                symbol=event.symbol,
+                status=event.status.value,
+                reason=reason,
+                occurred_at=event.updated_at,
+                order_id=event.order_id,
+                state=current,
+                metadata=dict(event.metadata),
+            )
 
-        return self._persist_and_publish(current, next_state, event.updated_at, reason, None)
+        return self._persist_and_publish(current, next_state, event.updated_at, reason, None, failed_action)
+
+    def recover_stale_transition(
+        self,
+        symbol: str,
+        now: datetime,
+        timeout_seconds: float,
+    ) -> PositionDecision | None:
+        current = self._load(symbol, now)
+        transitional_states = {
+            PositionLifecycle.OPEN_LONG,
+            PositionLifecycle.OPENING_LONG,
+            PositionLifecycle.OPEN_SHORT,
+            PositionLifecycle.OPENING_SHORT,
+            PositionLifecycle.CLOSE_LONG,
+            PositionLifecycle.CLOSING_LONG,
+            PositionLifecycle.CLOSE_SHORT,
+            PositionLifecycle.CLOSING_SHORT,
+        }
+        if current.lifecycle not in transitional_states or current.updated_at is None:
+            return None
+
+        age_seconds = (now - current.updated_at).total_seconds()
+        if age_seconds < timeout_seconds:
+            return None
+
+        next_state = self._rollback(current, now)
+        reason = "order_timeout"
+        failure_event = TradeActionFailed(
+            symbol=symbol,
+            status="timed_out",
+            reason=reason,
+            occurred_at=now,
+            order_id=current.active_order_id,
+            state=current,
+            metadata={"timeout_seconds": float(timeout_seconds)},
+        )
+        return self._persist_and_publish(current, next_state, now, reason, None, failure_event)
 
     def _load(self, symbol: str, now: datetime) -> PositionState:
         return self._repository.get(symbol) or make_flat_position(symbol, now)
@@ -247,10 +341,11 @@ class PositionManager:
         occurred_at: datetime,
         reason: str,
         trade_action: TradeAction | None,
+        failed_action: TradeActionFailed | None = None,
     ) -> PositionDecision:
         self._repository.save(current)
 
-        events: list[PositionStateChanged | TradeActionCreated] = []
+        events: list[PositionStateChanged | TradeActionCreated | TradeActionFailed] = []
         if current != previous:
             state_event = PositionStateChanged(
                 previous=previous,
@@ -271,5 +366,10 @@ class PositionManager:
             events.append(action_event)
             if self._publisher is not None:
                 self._publisher.publish(self._action_topic, action_event)
+
+        if failed_action is not None:
+            events.append(failed_action)
+            if self._publisher is not None:
+                self._publisher.publish(self._failed_action_topic, failed_action)
 
         return PositionDecision(state=current, trade_action=trade_action, events=tuple(events))

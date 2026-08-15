@@ -24,13 +24,15 @@ def run(argv: list[str] | None = None) -> None:
         "Position engine runner started",
         extra={
             "consumer_group": settings.consumer_group,
-            "signal_topic": settings.signal_topic,
+            "risk_decision_topic": settings.risk_decision_topic,
             "order_update_topic": settings.order_update_topic,
             "position_state_topic": settings.position_state_topic,
             "trade_action_topic": settings.trade_action_topic,
+            "trade_action_failed_topic": settings.trade_action_failed_topic,
+            "order_update_timeout_seconds": settings.order_update_timeout_seconds,
         },
     )
-    consumer.consume_forever((settings.signal_topic, settings.order_update_topic))
+    consumer.consume_forever((settings.risk_decision_topic, settings.order_update_topic))
 
 
 if __name__ == "__main__":

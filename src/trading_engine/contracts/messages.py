@@ -12,6 +12,7 @@ class EngineEventType(str, Enum):
     RISK_DECISION_MADE = "risk.decision.made"
     POSITION_STATE_CHANGED = "position.state.changed"
     TRADE_ACTION_REQUESTED = "trade.action.requested"
+    TRADE_ACTION_FAILED = "trade.action.failed"
     ORDER_UPDATE_RECEIVED = "trade.order.update.received"
 
 
@@ -20,6 +21,7 @@ class TopicNames:
     RISK_DECISION_MADE = "risk.decision.made.v1"
     POSITION_STATE_CHANGED = "position.state.changed.v1"
     TRADE_ACTION_REQUESTED = "trade.action.requested.v1"
+    TRADE_ACTION_FAILED = "trade.action.failed.v1"
     ORDER_UPDATE_RECEIVED = "trade.order.update.received.v1"
 
 
@@ -72,6 +74,17 @@ class TradeActionPayload:
     side: str
     requested_at: datetime
     quantity: float | None = None
+    state: str | None = None
+    metadata: dict[str, str | float] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class TradeActionFailedPayload:
+    symbol: str
+    status: str
+    reason: str
+    failed_at: datetime
+    order_id: str | None = None
     state: str | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
