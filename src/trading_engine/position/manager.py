@@ -322,13 +322,16 @@ class PositionManager:
         side: str,
         signal: PositionSignalCommand,
     ) -> TradeAction:
+        approved_quantity = signal.metadata.get("approved_quantity")
         return TradeAction(
             symbol=state.symbol,
             action_type=action_type,
             side=side,
             created_at=signal.timestamp,
+            quantity=approved_quantity if approved_quantity is not None else state.quantity,
             signal=signal,
             metadata={
+                **signal.metadata,
                 "lifecycle": state.lifecycle.value,
                 "signal_direction": signal.direction.value,
             },

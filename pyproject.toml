@@ -11,6 +11,7 @@ trading-engine = "trading_engine.__main__:main"
 strategy-engine-factor = "trading_engine.app.run_strategy_engine_factor:run"
 position-engine = "trading_engine.app.run_position_engine:run"
 risk-engine = "trading_engine.app.run_risk_engine:run"
+trade-engine = "trading_engine.app.run_trade_engine:run"
 position-view-projector = "trading_engine.app.run_position_view_projector:run"
 #strategy-engine-market-tick = "trading_engine.app.run_strategy_engine_factor:main"
 
@@ -23,7 +24,8 @@ dev = [
 runtime = [
   "clickhouse-connect>=0.8.0",
   "kafka-python>=2.0.2",
-  "redis>=5.0"
+  "redis>=5.0",
+  "websockets>=12.0"
 ]
 
 [build-system]

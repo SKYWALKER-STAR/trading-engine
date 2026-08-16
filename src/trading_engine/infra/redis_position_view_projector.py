@@ -113,7 +113,7 @@ class RedisPositionViewProjector:
             "updated": updated,
             "unchanged": unchanged,
         }
-        LOGGER.info("Position view projection finished", extra=result)
+        LOGGER.debug("Position view projection finished")
         return result
 
     @staticmethod

@@ -70,6 +70,41 @@ class RiskEngineSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class TradeEngineSettings:
+    consumer_group: str = "trade-engine"
+    trade_action_topic: str = TopicNames.TRADE_ACTION_REQUESTED
+    order_update_topic: str = TopicNames.ORDER_UPDATE_RECEIVED
+    risk_decision_topic: str = TopicNames.RISK_DECISION_MADE
+    exchange: str = "binance"
+    request_timeout_seconds: float = 10.0
+    binance_ws_api_url: str = "wss://ws-fapi.binance.com/ws-fapi/v1"
+    binance_api_key: str = ""
+    binance_api_secret: str = ""
+    binance_order_type: str = "MARKET"
+    binance_position_side: str = "BOTH"
+    binance_new_order_resp_type: str = "ACK"
+    binance_recv_window: int = 5000
+
+    @classmethod
+    def from_env(cls) -> "TradeEngineSettings":
+        return cls(
+            consumer_group=getenv("TRADE_ENGINE_CONSUMER_GROUP", "trade-engine"),
+            trade_action_topic=getenv("TRADE_ACTION_TOPIC", TopicNames.TRADE_ACTION_REQUESTED),
+            order_update_topic=getenv("TRADE_ORDER_UPDATE_TOPIC", TopicNames.ORDER_UPDATE_RECEIVED),
+            risk_decision_topic=getenv("TRADE_RISK_DECISION_TOPIC", TopicNames.RISK_DECISION_MADE),
+            exchange=getenv("TRADE_EXCHANGE", "binance").strip().lower(),
+            request_timeout_seconds=float(getenv("TRADE_REQUEST_TIMEOUT_SECONDS", "10.0")),
+            binance_ws_api_url=getenv("BINANCE_WS_API_URL", "wss://ws-fapi.binance.com/ws-fapi/v1"),
+            binance_api_key=getenv("BINANCE_API_KEY", ""),
+            binance_api_secret=getenv("BINANCE_API_SECRET", ""),
+            binance_order_type=getenv("BINANCE_ORDER_TYPE", "MARKET").strip().upper(),
+            binance_position_side=getenv("BINANCE_POSITION_SIDE", "BOTH").strip().upper(),
+            binance_new_order_resp_type=getenv("BINANCE_NEW_ORDER_RESP_TYPE", "ACK").strip().upper(),
+            binance_recv_window=int(getenv("BINANCE_RECV_WINDOW", "5000")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class PositionViewProjectorSettings:
     redis_url: str = "redis://127.0.0.1:6379/0"
     key_prefix: str = "binance:position:usdt_futures"

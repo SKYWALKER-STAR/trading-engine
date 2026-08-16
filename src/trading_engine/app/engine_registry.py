@@ -5,6 +5,7 @@ from typing import Callable
 
 from trading_engine.app.run_position_engine import run as run_position_engine
 from trading_engine.app.run_risk_engine import run as run_risk_engine
+from trading_engine.app.run_trade_engine import run as run_trade_engine
 from trading_engine.app.run_position_view_projector import run as run_position_view_projector
 from trading_engine.app.run_strategy_engine_factor import run as run_strategy_engine_factor
 
@@ -37,6 +38,11 @@ def get_engine_specs() -> dict[str, EngineSpec]:
             name="risk",
             description="Run Kafka-backed risk engine",
             runner=run_risk_engine,
+        ),
+        EngineSpec(
+            name="trade",
+            description="Run Kafka-backed trade engine",
+            runner=run_trade_engine,
         ),
         EngineSpec(
             name="position-projector",

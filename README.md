@@ -212,6 +212,47 @@ Risk engine settings:
 - `RISK_REQUIRE_POSITION_SNAPSHOT`
 - `RISK_DEFAULT_OPEN_QUANTITY`
 
+## Start The Trade Engine
+
+The trade engine consumes approved trade actions and routes them to an exchange gateway.
+
+```bash
+trade-engine
+```
+
+Or through the unified router:
+
+```bash
+python -m trading_engine trade
+```
+
+Trade engine command-line arguments:
+
+- None currently. The runner only accepts default help parsing and starts directly.
+
+Trade engine input topics:
+
+- `trade.action.requested.v1`
+
+Trade engine output topics:
+
+- `trade.order.update.received.v1`
+
+Trade engine settings:
+
+- `TRADE_ENGINE_CONSUMER_GROUP`
+- `TRADE_ACTION_TOPIC`
+- `TRADE_ORDER_UPDATE_TOPIC`
+- `TRADE_EXCHANGE` (`binance` currently)
+- `TRADE_REQUEST_TIMEOUT_SECONDS`
+- `BINANCE_WS_API_URL`
+- `BINANCE_API_KEY`
+- `BINANCE_API_SECRET`
+- `BINANCE_ORDER_TYPE` (default `MARKET`)
+- `BINANCE_POSITION_SIDE` (default `BOTH`)
+- `BINANCE_NEW_ORDER_RESP_TYPE` (default `ACK`)
+- `BINANCE_RECV_WINDOW` (default `5000`)
+
 ## Start The Position View Projector
 
 The position view projector reads Binance raw Redis snapshots and projects them into
@@ -335,7 +376,7 @@ python -m trading_engine <engine-name> -- <engine-specific-args>
 
 CLI arguments:
 
-- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `position`, `risk`, `position-projector`)
+- `<engine-name>`: one of the names reported by `--list-engines` (currently `strategy`, `risk`, `position`, `trade`, `position-projector`)
 - `--list-engines`: print available engines and exit
 - `<engine-specific-args>`: forwarded to the selected engine runner after `--`
 
