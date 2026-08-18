@@ -105,6 +105,39 @@ def _decode_payload(event_type: EngineEventType, payload: dict[str, Any]) -> Any
             status=str(payload["status"]),
             updated_at=datetime.fromisoformat(payload["updated_at"]),
             filled_quantity=None if payload.get("filled_quantity") is None else float(payload["filled_quantity"]),
+            last_filled_quantity=(
+                None
+                if payload.get("last_filled_quantity") is None
+                else float(payload["last_filled_quantity"])
+            ),
+            cumulative_filled_quantity=(
+                None
+                if payload.get("cumulative_filled_quantity") is None
+                else float(payload["cumulative_filled_quantity"])
+            ),
+            original_quantity=(
+                None
+                if payload.get("original_quantity") is None
+                else float(payload["original_quantity"])
+            ),
+            trade_id=None if payload.get("trade_id") is None else str(payload["trade_id"]),
+            execution_type=(
+                None if payload.get("execution_type") is None else str(payload["execution_type"])
+            ),
+            side=None if payload.get("side") is None else str(payload["side"]),
+            position_side=(
+                None if payload.get("position_side") is None else str(payload["position_side"])
+            ),
+            reduce_only=None if payload.get("reduce_only") is None else bool(payload["reduce_only"]),
+            client_order_id=(
+                None if payload.get("client_order_id") is None else str(payload["client_order_id"])
+            ),
+            event_time=(
+                None if payload.get("event_time") is None else datetime.fromisoformat(payload["event_time"])
+            ),
+            trade_time=(
+                None if payload.get("trade_time") is None else datetime.fromisoformat(payload["trade_time"])
+            ),
             metadata={key: value for key, value in payload.get("metadata", {}).items()},
         )
 

@@ -105,6 +105,43 @@ class TradeEngineSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class BinanceUserDataStreamSettings:
+    order_update_topic: str = TopicNames.ORDER_UPDATE_RECEIVED
+    rest_api_url: str = "https://fapi.binance.com"
+    websocket_stream_url: str = "wss://fstream.binance.com/ws"
+    api_key: str = ""
+    listen_key_keepalive_seconds: float = 1800.0
+    reconnect_initial_seconds: float = 1.0
+    reconnect_max_seconds: float = 30.0
+    request_timeout_seconds: float = 10.0
+
+    @classmethod
+    def from_env(cls) -> "BinanceUserDataStreamSettings":
+        return cls(
+            order_update_topic=getenv("TRADE_ORDER_UPDATE_TOPIC", TopicNames.ORDER_UPDATE_RECEIVED),
+            rest_api_url=getenv(
+                "BINANCE_FUTURES_REST_API_URL", "https://fapi.binance.com"
+            ).rstrip("/"),
+            websocket_stream_url=getenv(
+                "BINANCE_FUTURES_USER_STREAM_URL", "wss://fstream.binance.com/ws"
+            ).rstrip("/"),
+            api_key=getenv("BINANCE_API_KEY", ""),
+            listen_key_keepalive_seconds=float(
+                getenv("BINANCE_LISTEN_KEY_KEEPALIVE_SECONDS", "1800.0")
+            ),
+            reconnect_initial_seconds=float(
+                getenv("BINANCE_USER_STREAM_RECONNECT_INITIAL_SECONDS", "1.0")
+            ),
+            reconnect_max_seconds=float(
+                getenv("BINANCE_USER_STREAM_RECONNECT_MAX_SECONDS", "30.0")
+            ),
+            request_timeout_seconds=float(
+                getenv("BINANCE_USER_STREAM_REQUEST_TIMEOUT_SECONDS", "10.0")
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class PositionViewProjectorSettings:
     redis_url: str = "redis://127.0.0.1:6379/0"
     key_prefix: str = "binance:position:usdt_futures"

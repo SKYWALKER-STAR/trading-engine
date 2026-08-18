@@ -105,6 +105,7 @@ class TradeEngineMessageProcessor:
             status=status.value,
             updated_at=updated_at,
             filled_quantity=result.filled_quantity,
+            cumulative_filled_quantity=result.filled_quantity,
             metadata=dict(result.metadata),
         )
         order_update_event = build_event(

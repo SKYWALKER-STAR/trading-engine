@@ -96,6 +96,17 @@ class OrderUpdatePayload:
     status: str
     updated_at: datetime
     filled_quantity: float | None = None
+    last_filled_quantity: float | None = None
+    cumulative_filled_quantity: float | None = None
+    original_quantity: float | None = None
+    trade_id: str | None = None
+    execution_type: str | None = None
+    side: str | None = None
+    position_side: str | None = None
+    reduce_only: bool | None = None
+    client_order_id: str | None = None
+    event_time: datetime | None = None
+    trade_time: datetime | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from trading_engine.app.run_binance_user_data_stream import run as run_binance_user_data_stream
 from trading_engine.app.run_position_engine import run as run_position_engine
 from trading_engine.app.run_risk_engine import run as run_risk_engine
 from trading_engine.app.run_trade_engine import run as run_trade_engine
@@ -43,6 +44,11 @@ def get_engine_specs() -> dict[str, EngineSpec]:
             name="trade",
             description="Run Kafka-backed trade engine",
             runner=run_trade_engine,
+        ),
+        EngineSpec(
+            name="binance-user-stream",
+            description="Stream Binance Futures user order updates into Kafka",
+            runner=run_binance_user_data_stream,
         ),
         EngineSpec(
             name="position-projector",
