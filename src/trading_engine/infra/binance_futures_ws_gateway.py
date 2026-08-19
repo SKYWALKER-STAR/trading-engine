@@ -137,6 +137,7 @@ class BinanceFuturesWsGateway:
             metadata={
                 "exchange": "binance",
                 "exchange_status": exchange_status,
+                "exchange_response": result,
             },
         )
 

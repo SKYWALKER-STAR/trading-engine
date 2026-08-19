@@ -209,7 +209,7 @@ def test_binance_gateway_places_real_market_order() -> None:
             requested_at=datetime.now(UTC),
             correlation_id=request_id,
             causation_id=request_id,
-            metadata={"newOrderRespType": "RESULT"},
+            metadata={"newOrderRespType": "RESULT","positionSide": "LONG" if side == "BUY" else "SHORT"},
         )
     )
     print(f"status: {result.status}")
