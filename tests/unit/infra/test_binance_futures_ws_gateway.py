@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from os import getenv
 from typing import Any
+from uuid import uuid4
+
+import pytest
 
 from trading_engine.infra.binance_futures_ws_gateway import BinanceFuturesWsGateway
 from trading_engine.trade.models import TradeExecutionStatus, TradeOrderRequest
@@ -162,3 +166,59 @@ def test_binance_gateway_includes_optional_parameters_for_limit_orders() -> None
     assert params["positionSide"] == "SHORT"
     assert params["reduceOnly"] == "true"
     assert params["newOrderRespType"] == "RESULT"
+
+
+def test_binance_gateway_places_real_market_order() -> None:
+    """Place one real order only when the destructive integration test is explicitly enabled."""
+    if getenv("RUN_BINANCE_LIVE_ORDER_TEST") != "I_UNDERSTAND_THIS_PLACES_A_REAL_ORDER":
+        pytest.skip(
+            "set RUN_BINANCE_LIVE_ORDER_TEST=I_UNDERSTAND_THIS_PLACES_A_REAL_ORDER "
+            "to enable the real-order test"
+        )
+
+    api_key = getenv("BINANCE_API_KEY", "")
+    api_secret = getenv("BINANCE_API_SECRET", "")
+    symbol = getenv("BINANCE_LIVE_TEST_SYMBOL", "")
+    quantity_raw = getenv("BINANCE_LIVE_TEST_QUANTITY", "")
+    side = getenv("BINANCE_LIVE_TEST_SIDE", "BUY").strip().upper()
+
+    assert api_key, "BINANCE_API_KEY is required"
+    assert api_secret, "BINANCE_API_SECRET is required"
+    assert symbol, "BINANCE_LIVE_TEST_SYMBOL is required"
+    assert quantity_raw, "BINANCE_LIVE_TEST_QUANTITY is required"
+    assert side in {"BUY", "SELL"}, "BINANCE_LIVE_TEST_SIDE must be BUY or SELL"
+
+    quantity = float(quantity_raw)
+    assert quantity > 0, "BINANCE_LIVE_TEST_QUANTITY must be greater than zero"
+
+    gateway = BinanceFuturesWsGateway(
+        endpoint=getenv("BINANCE_WS_API_URL", "wss://ws-fapi.binance.com/ws-fapi/v1"),
+        api_key=api_key,
+        api_secret=api_secret,
+    )
+    request_id = str(uuid4())
+
+    print(f"Placing real order on Binance: symbol={symbol}, side={side}, quantity={quantity}, request_id={request_id}")
+
+    result = gateway.submit_order(
+        TradeOrderRequest(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            order_type="MARKET",
+            requested_at=datetime.now(UTC),
+            correlation_id=request_id,
+            causation_id=request_id,
+            metadata={"newOrderRespType": "RESULT"},
+        )
+    )
+    print(f"status: {result.status}")
+    print(f"order_id: {result.order_id}")
+    print(f"filled_quantity: {result.filled_quantity}")
+    print(f"metadata: {result.metadata}")   
+    assert result.status in {
+        TradeExecutionStatus.NEW,
+        TradeExecutionStatus.PARTIALLY_FILLED,
+        TradeExecutionStatus.FILLED,
+    }, f"order was rejected: {result.metadata}"
+    assert result.order_id is not None

@@ -7,7 +7,6 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from urllib.parse import urlencode
 from uuid import uuid4
 
 from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
@@ -142,7 +141,7 @@ class BinanceFuturesWsGateway:
         )
 
     def _sign(self, params: dict[str, Any]) -> str:
-        serialized = urlencode(sorted((key, str(value)) for key, value in params.items()))
+        serialized = "&".join(f"{key}={value}" for key, value in sorted(params.items()))
         signature = hmac.new(self.api_secret.encode("utf-8"), serialized.encode("utf-8"), hashlib.sha256)
         return signature.hexdigest()
 
