@@ -383,7 +383,22 @@ before the platform is used for unattended production trading with material fund
 - [ ] **Add idempotent event processing.** Kafka delivery may be duplicated, but the position and
   trade paths do not persist processed `event_id` values or enforce an equivalent idempotency key.
   Duplicate risk decisions must never create duplicate orders, and duplicate order updates must not
-  apply fills twice. Idempotency records must survive process restarts.
+  apply fills twice. This is already observable because Trade Engine may publish an initial `NEW` or
+  `FILLED` update from the order response and User Data Stream can publish the same state again.
+  Idempotency records must survive process restarts and trade fills should be deduplicated with an
+  exchange-scoped key such as `(symbol, order_id, trade_id)`.
+
+- [ ] **Validate order identity and monotonic order progression in PositionManager.** The manager
+  stores `active_order_id`, but `handle_order_event()` does not reject an update whose `order_id`
+  belongs to an older or unrelated order. Delayed and out-of-order events can therefore mutate the
+  current transition. Match every update to the active order, persist the last applied cumulative
+  fill/status, and define legal monotonic transitions, including partial-fill-then-cancel behavior.
+
+- [ ] **Reconcile gaps after User Data Stream disconnects and ambiguous order submissions.** The
+  adapter renews the listen key and reconnects with exponential backoff, but events emitted between
+  disconnect and reconnection are not replayed. Likewise, a timed-out order request can have an
+  unknown execution outcome. After reconnect or timeout, query open orders, order status, trades,
+  and authoritative positions before allowing additional exposure.
 
 - [ ] **Connect authoritative real-position synchronization to Risk Engine startup and updates.** A
   separate module synchronizes actual exchange positions, but the current Risk Engine starts with an
@@ -426,6 +441,12 @@ before the platform is used for unattended production trading with material fund
   returning `TradeOrderRequest` but returns `None` for invalid requests. Change the return type to
   `TradeOrderRequest | None` and keep strict type checking green.
 
+- [ ] **Validate Binance account mode against order parameters at startup.**
+  `BINANCE_POSITION_SIDE` only controls the per-order `positionSide`; the gateway does not query or
+  change the account's one-way/hedge mode. A mismatch (`BOTH` versus `LONG`/`SHORT`) causes live
+  orders to be rejected. Query and fail fast on mode mismatch, or manage the mode explicitly with a
+  guarded operational command.
+
 - [ ] **Expand risk policy coverage.** Current rules mainly protect position direction and lifecycle.
   Add account equity, available margin, leverage, per-symbol and portfolio exposure, order-size,
   drawdown, concentration, liquidity, price-deviation, and market-data freshness limits.
@@ -436,6 +457,10 @@ before the platform is used for unattended production trading with material fund
   the exchange gateway.
 - [ ] Add failure tests for duplicate, delayed, missing, and out-of-order messages; crashes between
   persistence and publication; Redis/Kafka outages; reconnects; and process restarts.
+- [ ] Promote live Binance probes out of the unit-test tree and add a controlled scenario that
+  produces and verifies `NEW`, `PARTIALLY_FILLED`, `FILLED`, and canceled-after-partial-fill events.
+  The current opt-in User Data Stream probe validates listen-key creation and the WebSocket handshake
+  but does not require a business event when the account is idle.
 - [ ] Add retry policies, dead-letter handling, reconciliation jobs, metrics, alerts, and structured
   audit logs.
 - [ ] Add execution venues beyond Binance Futures when required.
@@ -818,7 +843,19 @@ ClickHouse 或 Binance 服务。
 
 - [ ] **增加事件幂等处理。** Kafka 可能重复投递，但仓位和交易链路目前没有持久化已经处理的
   `event_id` 或等价幂等键。重复风险决策不能产生重复订单，重复订单更新也不能重复计算成交量。
-  幂等记录必须能够跨进程重启保存。
+  当前 Trade Engine 可能根据下单响应发布初始 `NEW` 或 `FILLED`，User Data Stream 随后又发布
+  同一状态，因此重复更新已经可能实际发生。幂等记录必须能够跨进程重启保存，成交事件应使用
+  `(symbol, order_id, trade_id)` 等包含交易所范围的键去重。
+
+- [ ] **在 PositionManager 中校验订单身份和状态单调性。** Manager 虽然保存了
+  `active_order_id`，但 `handle_order_event()` 并未拒绝来自旧订单或无关订单的 `order_id`。
+  延迟或乱序事件可能错误修改当前转换。每条更新都应与活动订单匹配，并持久化上次已应用的累计
+  成交量和状态，同时明确合法的单调状态转换，包括“部分成交后撤单”。
+
+- [ ] **补偿 User Data Stream 断线和下单结果不确定造成的数据缺口。** 当前适配器能够续期
+  listenKey，并使用指数退避重连，但断线到重连期间的事件不会回放；下单请求超时也可能处于
+  “交易所已受理、客户端未知”的状态。重连或超时后应查询未完成订单、订单状态、成交记录和
+  权威持仓，并在完成对账前禁止增加敞口。
 
 - [ ] **将真实持仓同步接入风控引擎的启动和增量更新路径。** 已有独立模块同步交易所真实持仓，
   但当前风控引擎启动时的内存仓位为空，并且只消费 `position.state.changed.v1`。只有当风控引擎
@@ -853,6 +890,11 @@ ClickHouse 或 Binance 服务。
   `TradeOrderRequest`，但无效请求会返回 `None`。返回类型应改为
   `TradeOrderRequest | None`，并确保严格类型检查通过。
 
+- [ ] **启动时校验 Binance 账户持仓模式与订单参数。** `BINANCE_POSITION_SIDE` 只设置每笔
+  订单的 `positionSide`，当前网关不会查询或切换账户的单向/双向持仓模式。账户模式与 `BOTH`
+  或 `LONG`/`SHORT` 不匹配会导致实盘拒单。应在启动时查询并快速失败，或通过受保护的运维命令
+  显式管理持仓模式。
+
 - [ ] **扩展风险规则。** 当前规则主要保护仓位方向和生命周期。后续应增加账户权益、可用保证金、
   杠杆、单 symbol 和组合敞口、订单大小、回撤、集中度、流动性、价格偏差及行情新鲜度限制。
 
@@ -861,12 +903,21 @@ ClickHouse 或 Binance 服务。
 - [ ] 增加跨 Kafka、Redis、ClickHouse 和交易网关的端到端集成测试及确定性回放测试。
 - [ ] 增加重复、延迟、丢失和乱序消息测试，以及持久化与发布之间崩溃、Redis/Kafka 故障、
   断线重连和进程重启测试。
+- [ ] 将 Binance 实盘探针移出单元测试目录，并增加可控场景，验证 `NEW`、`PARTIALLY_FILLED`、
+  `FILLED` 和部分成交后撤单事件。当前显式启用的 User Data Stream 实盘探针只验证 listenKey
+  创建和 WebSocket 握手，账户空闲时不强制要求收到业务事件。
 - [ ] 增加重试策略、死信处理、仓位对账任务、指标、报警和结构化审计日志。
 - [ ] 在需要时增加 Binance Futures 以外的交易执行通道。
 
+### 改造计划
 
-### 状态机补充
-- [ ] 部分成交后撤单
-- [ ] 累计成交量计算
-- [ ] 订单ID校验
-- [ ] 超时对账
+- [ ] 扩展 PositionOrderEvent，不再丢失成交字段。
+- [ ] 新增 TrackedOrder 和持久化 repository。
+- [ ] 下单时生成并传递 newClientOrderId。
+- [ ] 绑定 client_order_id → order_id。
+- [ ] 校验 active_order_id。
+- [ ] 使用累计成交差值更新仓位。
+- [ ] 使用 trade_id 实现持久化幂等。
+- [ ] 修正部分成交后撤单。
+- [ ] 实现订单状态单调性。
+- [ ] 增加启动、重连和超时后的 Binance 对账。

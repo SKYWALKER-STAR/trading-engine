@@ -127,3 +127,5 @@ def test_stream_connects_to_real_binance_user_data_stream() -> None:
     if messages:
         assert isinstance(messages[0].get("e"), str)
         print(f"Received Binance user data event: {messages[0]}")
+
+    print(f"Binance user data stream test completed with {len(messages)} messages received")
