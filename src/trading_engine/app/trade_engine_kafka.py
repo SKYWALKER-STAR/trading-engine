@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -58,6 +60,8 @@ class TradeEngineMessageProcessor:
             )
             return
         result = self._gateway.submit_order(request)
+        if result.client_order_id is None:
+            result = replace(result, client_order_id=request.client_order_id)
         self._publish_order_updates(payload.symbol, event, result)
 
     def _publish_order_updates(
@@ -102,6 +106,7 @@ class TradeEngineMessageProcessor:
         payload = OrderUpdatePayload(
             symbol=symbol,
             order_id=result.order_id,
+            client_order_id=result.client_order_id,
             status=status.value,
             updated_at=updated_at,
             filled_quantity=result.filled_quantity,
@@ -169,6 +174,14 @@ def _to_trade_order_request(
     metadata = dict(payload.metadata)
     metadata["trade_action"] = payload.action
 
+    client_order_id_raw = metadata.get("newClientOrderId")
+    client_order_id = (
+        str(client_order_id_raw)
+        if client_order_id_raw is not None
+        else _client_order_id_for_event(event.event_id)
+    )
+    metadata["newClientOrderId"] = client_order_id
+
     if "position_side" not in metadata and "positionSide" not in metadata:
         metadata["positionSide"] = settings.binance_position_side
 
@@ -194,5 +207,12 @@ def _to_trade_order_request(
         requested_at=payload.requested_at,
         correlation_id=event.correlation_id,
         causation_id=event.event_id,
+        client_order_id=client_order_id,
         metadata=metadata,
     )
+
+
+def _client_order_id_for_event(event_id: str) -> str:
+    """Return a Binance-safe, deterministic ID for one logical order request."""
+    digest = hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:32]
+    return f"te-{digest}"

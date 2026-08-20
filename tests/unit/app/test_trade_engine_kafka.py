@@ -79,6 +79,36 @@ def test_trade_engine_publishes_new_and_filled_updates() -> None:
     assert publisher.published[1][1].payload.status == "filled"
 
 
+def test_trade_engine_generates_and_preserves_deterministic_client_order_id() -> None:
+    now = datetime(2026, 8, 16, 9, 0, 1, tzinfo=UTC)
+    publisher = _FakePublisher()
+    gateway = _FakeGateway(
+        TradeExecutionResult(
+            symbol="BTCUSDT",
+            status=TradeExecutionStatus.NEW,
+            updated_at=now,
+            order_id="ord-client-1",
+        )
+    )
+    processor = TradeEngineMessageProcessor(
+        publisher=publisher,
+        settings=TradeEngineSettings(),
+        gateway=gateway,
+    )
+    event = _trade_action_event()
+
+    processor.handle_trade_action(event)
+
+    request = gateway.requests[0]
+    expected = _to_trade_order_request(event.payload, event, TradeEngineSettings())
+    assert request.client_order_id is not None
+    assert request.client_order_id == expected.client_order_id
+    assert request.client_order_id.startswith("te-")
+    assert len(request.client_order_id) == 35
+    assert request.metadata["newClientOrderId"] == request.client_order_id
+    assert publisher.published[0][1].payload.client_order_id == request.client_order_id
+
+
 def test_trade_engine_publishes_rejected_update_only() -> None:
     now = datetime(2026, 8, 16, 9, 0, 2, tzinfo=UTC)
     publisher = _FakePublisher()
@@ -200,6 +230,3 @@ def test_trade_engine_deal_position_manager_action() -> None:
     processor.handle_trade_action(contract_event)
 
     assert request.quantity == 0.1
-
-
-    

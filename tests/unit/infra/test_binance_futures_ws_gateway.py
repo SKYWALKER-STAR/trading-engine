@@ -30,6 +30,7 @@ def _build_request() -> TradeOrderRequest:
         requested_at=datetime(2026, 8, 16, 10, 0, tzinfo=UTC),
         correlation_id="corr-1",
         causation_id="cause-1",
+        client_order_id="te-client-1",
     )
 
 
@@ -56,11 +57,13 @@ def test_binance_gateway_maps_successful_fill_response() -> None:
 
     assert result.status is TradeExecutionStatus.FILLED
     assert result.order_id == "12345"
+    assert result.client_order_id == "te-client-1"
     assert result.filled_quantity == 0.1
     assert result.metadata["exchange"] == "binance"
     assert len(transport.calls) == 1
     _, sent_message, _ = transport.calls[0]
     assert sent_message["method"] == "order.place"
+    assert sent_message["params"]["newClientOrderId"] == "te-client-1"
     assert "signature" in sent_message["params"]
 
 

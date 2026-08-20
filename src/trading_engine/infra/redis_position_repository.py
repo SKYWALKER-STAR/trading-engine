@@ -43,6 +43,9 @@ class RedisPositionRepository(PositionRepository):
             lifecycle=PositionLifecycle(payload["lifecycle"]),
             quantity=float(payload.get("quantity", 0.0)),
             active_order_id=payload.get("active_order_id"),
+            active_client_order_id=payload.get("active_client_order_id"),
+            last_order_id=payload.get("last_order_id"),
+            last_client_order_id=payload.get("last_client_order_id"),
             updated_at=updated_at,
             metadata={key: value for key, value in payload.get("metadata", {}).items()},
         )
@@ -54,6 +57,9 @@ class RedisPositionRepository(PositionRepository):
             "lifecycle": state.lifecycle.value,
             "quantity": state.quantity,
             "active_order_id": state.active_order_id,
+            "active_client_order_id": state.active_client_order_id,
+            "last_order_id": state.last_order_id,
+            "last_client_order_id": state.last_client_order_id,
             "updated_at": state.updated_at.isoformat() if state.updated_at is not None else None,
             "metadata": state.metadata,
         }

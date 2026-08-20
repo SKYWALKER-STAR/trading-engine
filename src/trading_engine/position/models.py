@@ -49,6 +49,9 @@ class PositionState:
     lifecycle: PositionLifecycle
     quantity: float = 0.0
     active_order_id: str | None = None
+    active_client_order_id: str | None = None
+    last_order_id: str | None = None
+    last_client_order_id: str | None = None
     updated_at: datetime | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
@@ -70,6 +73,7 @@ class PositionOrderEvent:
     status: OrderUpdateStatus
     updated_at: datetime
     order_id: str | None = None
+    client_order_id: str | None = None
     filled_quantity: float | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
@@ -107,11 +111,19 @@ class PositionDecision:
     events: tuple[PositionStateChanged | TradeActionCreated | TradeActionFailed, ...] = ()
 
 
-def make_flat_position(symbol: str, now: datetime) -> PositionState:
+def make_flat_position(
+    symbol: str,
+    now: datetime,
+    *,
+    last_order_id: str | None = None,
+    last_client_order_id: str | None = None,
+) -> PositionState:
     return PositionState(
         symbol=symbol,
         direction=PositionDirection.FLAT,
         lifecycle=PositionLifecycle.FLAT,
+        last_order_id=last_order_id,
+        last_client_order_id=last_client_order_id,
         updated_at=now,
     )
 

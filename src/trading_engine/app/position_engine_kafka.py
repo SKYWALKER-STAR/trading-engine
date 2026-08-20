@@ -169,6 +169,7 @@ class PositionEngineMessageProcessor:
                 status=OrderUpdateStatus(payload.status),
                 updated_at=payload.updated_at,
                 order_id=payload.order_id,
+                client_order_id=payload.client_order_id,
                 filled_quantity=payload.filled_quantity,
                 metadata=dict(payload.metadata),
             )
@@ -239,6 +240,9 @@ def _to_state_snapshot(state: Any) -> PositionStateSnapshot:
         lifecycle=state.lifecycle.value,
         quantity=state.quantity,
         active_order_id=state.active_order_id,
+        active_client_order_id=state.active_client_order_id,
+        last_order_id=state.last_order_id,
+        last_client_order_id=state.last_client_order_id,
         updated_at=state.updated_at,
         metadata=dict(state.metadata),
     )

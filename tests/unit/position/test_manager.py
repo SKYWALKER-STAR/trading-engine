@@ -62,6 +62,7 @@ def test_new_order_moves_open_long_to_opening_long() -> None:
             status=OrderUpdateStatus.NEW,
             updated_at=now + timedelta(seconds=1),
             order_id="ord-1",
+            client_order_id="te-client-1",
         )
     )
 
@@ -69,6 +70,7 @@ def test_new_order_moves_open_long_to_opening_long() -> None:
     assert decision.state.direction is PositionDirection.FLAT
     assert decision.state.lifecycle is PositionLifecycle.OPENING_LONG
     assert decision.state.active_order_id == "ord-1"
+    assert decision.state.active_client_order_id == "te-client-1"
 
 
 def test_filled_order_moves_opening_long_to_long() -> None:
@@ -82,6 +84,7 @@ def test_filled_order_moves_opening_long_to_long() -> None:
             status=OrderUpdateStatus.NEW,
             updated_at=now + timedelta(seconds=1),
             order_id="ord-1",
+            client_order_id="te-client-1",
         )
     )
 
@@ -91,6 +94,7 @@ def test_filled_order_moves_opening_long_to_long() -> None:
             status=OrderUpdateStatus.FILLED,
             updated_at=now + timedelta(seconds=2),
             order_id="ord-1",
+            client_order_id="te-client-1",
             filled_quantity=0.25,
         )
     )
@@ -99,6 +103,10 @@ def test_filled_order_moves_opening_long_to_long() -> None:
     assert decision.state.direction is PositionDirection.LONG
     assert decision.state.lifecycle is PositionLifecycle.LONG
     assert decision.state.quantity == 0.25
+    assert decision.state.active_order_id is None
+    assert decision.state.active_client_order_id is None
+    assert decision.state.last_order_id == "ord-1"
+    assert decision.state.last_client_order_id == "te-client-1"
 
 
 def test_long_signal_flat_generates_close_long_action() -> None:

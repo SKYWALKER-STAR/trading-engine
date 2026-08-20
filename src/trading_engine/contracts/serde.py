@@ -162,5 +162,18 @@ def _decode_position_state_snapshot(payload: dict[str, Any]) -> PositionStateSna
         quantity=float(payload["quantity"]),
         active_order_id=None if payload.get("active_order_id") is None else str(payload["active_order_id"]),
         updated_at=updated_at,
+        active_client_order_id=(
+            None
+            if payload.get("active_client_order_id") is None
+            else str(payload["active_client_order_id"])
+        ),
+        last_order_id=(
+            None if payload.get("last_order_id") is None else str(payload["last_order_id"])
+        ),
+        last_client_order_id=(
+            None
+            if payload.get("last_client_order_id") is None
+            else str(payload["last_client_order_id"])
+        ),
         metadata={key: value for key, value in payload.get("metadata", {}).items()},
     )

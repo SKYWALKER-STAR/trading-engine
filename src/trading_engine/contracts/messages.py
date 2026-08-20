@@ -118,6 +118,9 @@ class PositionStateSnapshot:
     quantity: float
     active_order_id: str | None
     updated_at: datetime | None
+    active_client_order_id: str | None = None
+    last_order_id: str | None = None
+    last_client_order_id: str | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
 

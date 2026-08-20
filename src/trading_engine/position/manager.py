@@ -76,6 +76,8 @@ class PositionManager:
 
     def handle_order_event(self, event: PositionOrderEvent) -> PositionDecision:
         current = self._load(event.symbol, event.updated_at)
+        order_id = event.order_id or current.active_order_id
+        client_order_id = event.client_order_id or current.active_client_order_id
         next_state = current
         reason = "order_event_ignored"
         failed_action: TradeActionFailed | None = None
@@ -86,7 +88,8 @@ class PositionManager:
                     current,
                     lifecycle=PositionLifecycle.OPENING_LONG,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_new_open_long"
             elif current.lifecycle is PositionLifecycle.OPEN_SHORT:
@@ -94,7 +97,8 @@ class PositionManager:
                     current,
                     lifecycle=PositionLifecycle.OPENING_SHORT,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_new_open_short"
             elif current.lifecycle is PositionLifecycle.CLOSE_LONG:
@@ -102,7 +106,8 @@ class PositionManager:
                     current,
                     lifecycle=PositionLifecycle.CLOSING_LONG,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_new_close_long"
             elif current.lifecycle is PositionLifecycle.CLOSE_SHORT:
@@ -110,7 +115,8 @@ class PositionManager:
                     current,
                     lifecycle=PositionLifecycle.CLOSING_SHORT,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_new_close_short"
         elif event.status is OrderUpdateStatus.FILLED:
@@ -122,7 +128,8 @@ class PositionManager:
                     lifecycle=PositionLifecycle.LONG,
                     quantity=quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    last_order_id=order_id,
+                    last_client_order_id=client_order_id,
                 )
                 reason = "order_filled_open_long"
             elif current.lifecycle is PositionLifecycle.OPENING_SHORT:
@@ -132,14 +139,25 @@ class PositionManager:
                     lifecycle=PositionLifecycle.SHORT,
                     quantity=quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    last_order_id=order_id,
+                    last_client_order_id=client_order_id,
                 )
                 reason = "order_filled_open_short"
             elif current.lifecycle is PositionLifecycle.CLOSING_LONG:
-                next_state = make_flat_position(current.symbol, event.updated_at)
+                next_state = make_flat_position(
+                    current.symbol,
+                    event.updated_at,
+                    last_order_id=order_id,
+                    last_client_order_id=client_order_id,
+                )
                 reason = "order_filled_close_long"
             elif current.lifecycle is PositionLifecycle.CLOSING_SHORT:
-                next_state = make_flat_position(current.symbol, event.updated_at)
+                next_state = make_flat_position(
+                    current.symbol,
+                    event.updated_at,
+                    last_order_id=order_id,
+                    last_client_order_id=client_order_id,
+                )
                 reason = "order_filled_close_short"
         elif event.status is OrderUpdateStatus.PARTIALLY_FILLED:
             filled_quantity = event.filled_quantity if event.filled_quantity is not None else current.quantity
@@ -150,7 +168,8 @@ class PositionManager:
                     lifecycle=PositionLifecycle.OPENING_LONG,
                     quantity=filled_quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_partially_filled_open_long"
             elif current.lifecycle is PositionLifecycle.OPENING_SHORT:
@@ -160,7 +179,8 @@ class PositionManager:
                     lifecycle=PositionLifecycle.OPENING_SHORT,
                     quantity=filled_quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_partially_filled_open_short"
             elif current.lifecycle is PositionLifecycle.CLOSING_LONG:
@@ -171,7 +191,8 @@ class PositionManager:
                     lifecycle=PositionLifecycle.CLOSING_LONG,
                     quantity=remaining_quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_partially_filled_close_long"
             elif current.lifecycle is PositionLifecycle.CLOSING_SHORT:
@@ -182,18 +203,24 @@ class PositionManager:
                     lifecycle=PositionLifecycle.CLOSING_SHORT,
                     quantity=remaining_quantity,
                     updated_at=event.updated_at,
-                    active_order_id=event.order_id,
+                    active_order_id=order_id,
+                    active_client_order_id=client_order_id,
                 )
                 reason = "order_partially_filled_close_short"
         elif event.status in (OrderUpdateStatus.CANCELED, OrderUpdateStatus.REJECTED):
-            next_state = self._rollback(current, event.updated_at)
+            next_state = self._rollback(
+                current,
+                event.updated_at,
+                order_id=order_id,
+                client_order_id=client_order_id,
+            )
             reason = f"order_{event.status.value}"
             failed_action = TradeActionFailed(
                 symbol=event.symbol,
                 status=event.status.value,
                 reason=reason,
                 occurred_at=event.updated_at,
-                order_id=event.order_id,
+                order_id=order_id,
                 state=current,
                 metadata=dict(event.metadata),
             )
@@ -253,6 +280,9 @@ class PositionManager:
             lifecycle=lifecycle,
             quantity=current.quantity,
             active_order_id=current.active_order_id,
+            active_client_order_id=current.active_client_order_id,
+            last_order_id=current.last_order_id,
+            last_client_order_id=current.last_client_order_id,
             updated_at=now,
             metadata={
                 **current.metadata,
@@ -270,6 +300,9 @@ class PositionManager:
         quantity: float | None = None,
         updated_at: datetime,
         active_order_id: str | None = None,
+        active_client_order_id: str | None = None,
+        last_order_id: str | None = None,
+        last_client_order_id: str | None = None,
     ) -> PositionState:
         return PositionState(
             symbol=current.symbol,
@@ -277,22 +310,49 @@ class PositionManager:
             lifecycle=lifecycle or current.lifecycle,
             quantity=current.quantity if quantity is None else quantity,
             active_order_id=active_order_id,
+            active_client_order_id=active_client_order_id,
+            last_order_id=current.last_order_id if last_order_id is None else last_order_id,
+            last_client_order_id=(
+                current.last_client_order_id
+                if last_client_order_id is None
+                else last_client_order_id
+            ),
             updated_at=updated_at,
             metadata=dict(current.metadata),
         )
 
     @staticmethod
-    def _rollback(current: PositionState, updated_at: datetime) -> PositionState:
+    def _rollback(
+        current: PositionState,
+        updated_at: datetime,
+        *,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
+    ) -> PositionState:
+        terminal_order_id = order_id or current.active_order_id
+        terminal_client_order_id = client_order_id or current.active_client_order_id
         if current.lifecycle in (PositionLifecycle.OPEN_LONG, PositionLifecycle.OPENING_LONG):
-            return make_flat_position(current.symbol, updated_at)
+            return make_flat_position(
+                current.symbol,
+                updated_at,
+                last_order_id=terminal_order_id,
+                last_client_order_id=terminal_client_order_id,
+            )
         if current.lifecycle in (PositionLifecycle.OPEN_SHORT, PositionLifecycle.OPENING_SHORT):
-            return make_flat_position(current.symbol, updated_at)
+            return make_flat_position(
+                current.symbol,
+                updated_at,
+                last_order_id=terminal_order_id,
+                last_client_order_id=terminal_client_order_id,
+            )
         if current.lifecycle in (PositionLifecycle.CLOSE_LONG, PositionLifecycle.CLOSING_LONG):
             return PositionState(
                 symbol=current.symbol,
                 direction=PositionDirection.LONG,
                 lifecycle=PositionLifecycle.LONG,
                 quantity=current.quantity,
+                last_order_id=terminal_order_id,
+                last_client_order_id=terminal_client_order_id,
                 updated_at=updated_at,
                 metadata=dict(current.metadata),
             )
@@ -302,6 +362,8 @@ class PositionManager:
                 direction=PositionDirection.SHORT,
                 lifecycle=PositionLifecycle.SHORT,
                 quantity=current.quantity,
+                last_order_id=terminal_order_id,
+                last_client_order_id=terminal_client_order_id,
                 updated_at=updated_at,
                 metadata=dict(current.metadata),
             )
@@ -311,6 +373,11 @@ class PositionManager:
             lifecycle=current.lifecycle,
             quantity=current.quantity,
             active_order_id=None,
+            active_client_order_id=None,
+            last_order_id=terminal_order_id or current.last_order_id,
+            last_client_order_id=(
+                terminal_client_order_id or current.last_client_order_id
+            ),
             updated_at=updated_at,
             metadata=dict(current.metadata),
         )

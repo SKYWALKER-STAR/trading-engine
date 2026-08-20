@@ -105,6 +105,7 @@ def test_order_update_event_advances_position_state() -> None:
         OrderUpdatePayload(
             symbol="BTCUSDT",
             order_id="ord-1",
+            client_order_id="te-client-1",
             status="new",
             updated_at=now + timedelta(seconds=1),
         ),
@@ -116,3 +117,5 @@ def test_order_update_event_advances_position_state() -> None:
 
     saved_state = repository.state["BTCUSDT"]
     assert saved_state.lifecycle.value == "opening_long"
+    assert saved_state.active_order_id == "ord-1"
+    assert saved_state.active_client_order_id == "te-client-1"

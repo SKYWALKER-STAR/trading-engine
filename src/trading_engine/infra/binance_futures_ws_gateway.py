@@ -73,7 +73,7 @@ class BinanceFuturesWsGateway:
         if new_order_resp_type is not None:
             params["newOrderRespType"] = str(new_order_resp_type).upper()
 
-        new_client_order_id = request.metadata.get("newClientOrderId")
+        new_client_order_id = request.client_order_id or request.metadata.get("newClientOrderId")
         if new_client_order_id is not None:
             params["newClientOrderId"] = str(new_client_order_id)
 
@@ -107,6 +107,7 @@ class BinanceFuturesWsGateway:
                 status=TradeExecutionStatus.REJECTED,
                 updated_at=datetime.now(UTC),
                 order_id=None,
+                client_order_id=None if new_client_order_id is None else str(new_client_order_id),
                 filled_quantity=None,
                 metadata={
                     "exchange": "binance",
@@ -120,6 +121,8 @@ class BinanceFuturesWsGateway:
         status = _map_status(exchange_status)
         order_id_raw = result.get("orderId")
         order_id = None if order_id_raw is None else str(order_id_raw)
+        client_order_id_raw = result.get("clientOrderId", new_client_order_id)
+        client_order_id = None if client_order_id_raw is None else str(client_order_id_raw)
         filled_raw = result.get("executedQty", result.get("cumQty"))
         filled_quantity: float | None = None
         if filled_raw is not None:
@@ -133,6 +136,7 @@ class BinanceFuturesWsGateway:
             status=status,
             updated_at=datetime.now(UTC),
             order_id=order_id,
+            client_order_id=client_order_id,
             filled_quantity=filled_quantity,
             metadata={
                 "exchange": "binance",

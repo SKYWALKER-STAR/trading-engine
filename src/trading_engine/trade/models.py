@@ -22,6 +22,7 @@ class TradeOrderRequest:
     requested_at: datetime
     correlation_id: str
     causation_id: str
+    client_order_id: str | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
 
@@ -31,5 +32,6 @@ class TradeExecutionResult:
     status: TradeExecutionStatus
     updated_at: datetime
     order_id: str | None = None
+    client_order_id: str | None = None
     filled_quantity: float | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
