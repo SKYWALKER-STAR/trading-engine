@@ -175,6 +175,13 @@ The current implementation supports `TRADE_EXCHANGE=binance` and requires `BINAN
 `BINANCE_API_SECRET`. Market orders are the default. Limit orders require `price` and
 `timeInForce` in trade-action metadata.
 
+Before submission, Trade Engine persists a `TrackedOrder` with a deterministic `client_order_id`
+and `PENDING_SUBMIT` status in Redis. A successful response binds Binance `order_id` and then saves
+the returned status/cumulative fill; a transport exception records `UNKNOWN` for later
+reconciliation. `OrderRepository` remains storage-agnostic so PostgreSQL can replace Redis as the
+authoritative implementation without changing the domain or processor contract. Redis keys use the
+configured order prefix and maintain both client-ID and exchange-order-ID lookup paths.
+
 ### Binance User Data Stream
 
 Run this process alongside the trade and position engines:
@@ -317,6 +324,9 @@ When snapshots are optional, a missing snapshot is treated as flat. Set
 | `BINANCE_POSITION_SIDE` | `BOTH` |
 | `BINANCE_NEW_ORDER_RESP_TYPE` | `ACK` |
 | `BINANCE_RECV_WINDOW` | `5000` |
+| `ORDER_ACCOUNT_ID` | `default` |
+| `ORDER_REDIS_URL` | `redis://127.0.0.1:6379/0` |
+| `ORDER_REDIS_KEY_PREFIX` | `order` |
 
 ### Binance User Data Stream
 
@@ -386,7 +396,9 @@ before the platform is used for unattended production trading with material fund
   apply fills twice. This is already observable because Trade Engine may publish an initial `NEW` or
   `FILLED` update from the order response and User Data Stream can publish the same state again.
   Idempotency records must survive process restarts and trade fills should be deduplicated with an
-  exchange-scoped key such as `(symbol, order_id, trade_id)`.
+  exchange-scoped key such as `(symbol, order_id, trade_id)`. Trade Engine now persists
+  `PENDING_SUBMIT` before submission and binds `client_order_id` to `order_id`, but Inbox/outbox and
+  trade-level deduplication are still missing.
 
 - [ ] **Validate order identity and monotonic order progression in PositionManager.** The manager
   stores `active_order_id`, but `handle_order_event()` does not reject an update whose `order_id`
@@ -642,6 +654,12 @@ python -m trading_engine trade
 `BINANCE_API_SECRET`。默认提交市价单；限价单必须在交易动作元数据中提供 `price` 和
 `timeInForce`。
 
+提交前，交易引擎会先在 Redis 中持久化状态为 `PENDING_SUBMIT`、带确定性
+`client_order_id` 的 `TrackedOrder`。收到成功响应后，会绑定 Binance `order_id` 并继续保存
+响应状态及累计成交量；传输异常则保存为 `UNKNOWN`，等待后续对账。`OrderRepository` 保持
+存储无关，后续可以用 PostgreSQL 替换 Redis 作为权威实现，而不需要修改领域模型和处理器
+契约。Redis 同时维护 client ID 与交易所 order ID 两条查询路径。
+
 ### Binance User Data Stream
 
 该进程需要与交易引擎、仓位引擎同时运行：
@@ -784,6 +802,9 @@ Redis 键名和数据结构参见
 | `BINANCE_POSITION_SIDE` | `BOTH` |
 | `BINANCE_NEW_ORDER_RESP_TYPE` | `ACK` |
 | `BINANCE_RECV_WINDOW` | `5000` |
+| `ORDER_ACCOUNT_ID` | `default` |
+| `ORDER_REDIS_URL` | `redis://127.0.0.1:6379/0` |
+| `ORDER_REDIS_KEY_PREFIX` | `order` |
 
 ### Binance User Data Stream 配置
 
@@ -845,7 +866,8 @@ ClickHouse 或 Binance 服务。
   `event_id` 或等价幂等键。重复风险决策不能产生重复订单，重复订单更新也不能重复计算成交量。
   当前 Trade Engine 可能根据下单响应发布初始 `NEW` 或 `FILLED`，User Data Stream 随后又发布
   同一状态，因此重复更新已经可能实际发生。幂等记录必须能够跨进程重启保存，成交事件应使用
-  `(symbol, order_id, trade_id)` 等包含交易所范围的键去重。
+  `(symbol, order_id, trade_id)` 等包含交易所范围的键去重。交易引擎现在已经在提交前保存
+  `PENDING_SUBMIT`，并绑定 `client_order_id` 与 `order_id`，但 Inbox/outbox 和成交级去重仍未实现。
 
 - [ ] **在 PositionManager 中校验订单身份和状态单调性。** Manager 虽然保存了
   `active_order_id`，但 `handle_order_event()` 并未拒绝来自旧订单或无关订单的 `order_id`。

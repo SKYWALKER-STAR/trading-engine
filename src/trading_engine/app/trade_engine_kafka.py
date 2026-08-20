@@ -15,8 +15,16 @@ from trading_engine.contracts.messages import (
     build_event,
 )
 from trading_engine.infra.kafka_event_bus import KafkaEventConsumer, KafkaEventPublisher
+from trading_engine.infra.redis_order_repository import RedisOrderRepository
 from trading_engine.trade.gateway import TradeExecutionGateway
-from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
+from trading_engine.trade.models import (
+    TrackedOrder,
+    TrackedOrderStatus,
+    TradeExecutionResult,
+    TradeExecutionStatus,
+    TradeOrderRequest,
+)
+from trading_engine.trade.repository import OrderRepository
 
 
 LOGGER = get_logger(__name__)
@@ -31,11 +39,13 @@ class TradeEngineMessageProcessor:
         settings: TradeEngineSettings,
         gateway: TradeExecutionGateway,
         *,
+        order_repository: OrderRepository | None = None,
         producer_name: str = "trade-engine",
     ) -> None:
         self._publisher = publisher
         self._settings = settings
         self._gateway = gateway
+        self._order_repository = order_repository
         self._producer_name = producer_name
 
     def handle_trade_action(self, event: EngineEvent[Any]) -> None:
@@ -59,10 +69,91 @@ class TradeEngineMessageProcessor:
                 ),
             )
             return
-        result = self._gateway.submit_order(request)
+        tracked_order = self._make_pending_order(request)
+        if self._order_repository is not None:
+            self._order_repository.save(tracked_order)
+        try:
+            result = self._gateway.submit_order(request)
+        except Exception as exc:
+            if self._order_repository is not None:
+                self._order_repository.save(
+                    replace(
+                        tracked_order,
+                        status=TrackedOrderStatus.UNKNOWN,
+                        updated_at=datetime.now(UTC),
+                        metadata={
+                            **tracked_order.metadata,
+                            "submission_error": type(exc).__name__,
+                        },
+                    )
+                )
+            raise
         if result.client_order_id is None:
             result = replace(result, client_order_id=request.client_order_id)
+        if self._order_repository is not None:
+            self._save_execution_result(tracked_order, result)
         self._publish_order_updates(payload.symbol, event, result)
+
+    def _make_pending_order(self, request: TradeOrderRequest) -> TrackedOrder:
+        if request.client_order_id is None:
+            raise ValueError("TradeOrderRequest.client_order_id is required")
+        position_side = request.metadata.get(
+            "positionSide",
+            request.metadata.get("position_side"),
+        )
+        reduce_only_raw = request.metadata.get("reduceOnly", False)
+        reduce_only = str(reduce_only_raw).strip().lower() in {"1", "true", "yes", "on"}
+        return TrackedOrder(
+            exchange=self._settings.exchange,
+            account_id=self._settings.order_account_id,
+            symbol=request.symbol.upper(),
+            client_order_id=request.client_order_id,
+            side=request.side.upper(),
+            order_type=request.order_type.upper(),
+            original_quantity=request.quantity,
+            status=TrackedOrderStatus.PENDING_SUBMIT,
+            created_at=request.requested_at,
+            updated_at=request.requested_at,
+            position_side=None if position_side is None else str(position_side).upper(),
+            reduce_only=reduce_only,
+            metadata={
+                "correlation_id": request.correlation_id,
+                "causation_id": request.causation_id,
+            },
+        )
+
+    def _save_execution_result(
+        self,
+        pending_order: TrackedOrder,
+        result: TradeExecutionResult,
+    ) -> None:
+        if self._order_repository is None:
+            raise RuntimeError("Order repository is required to save execution results")
+        tracked_order = pending_order
+        if result.order_id is not None:
+            tracked_order = self._order_repository.bind_order_id(
+                exchange=pending_order.exchange,
+                account_id=pending_order.account_id,
+                client_order_id=pending_order.client_order_id,
+                symbol=pending_order.symbol,
+                order_id=result.order_id,
+            )
+        self._order_repository.save(
+            replace(
+                tracked_order,
+                status=TrackedOrderStatus(result.status.value),
+                updated_at=result.updated_at,
+                cumulative_filled_quantity=(
+                    tracked_order.cumulative_filled_quantity
+                    if result.filled_quantity is None
+                    else result.filled_quantity
+                ),
+                metadata={
+                    **tracked_order.metadata,
+                    "execution_source": "order_response",
+                },
+            )
+        )
 
     def _publish_order_updates(
         self,
@@ -128,13 +219,18 @@ def build_trade_engine_consumer(
     settings: TradeEngineSettings,
     gateway: TradeExecutionGateway,
     *,
+    order_repository: OrderRepository | None = None,
     producer_name: str = "trade-engine",
 ) -> KafkaEventConsumer:
     publisher = KafkaEventPublisher.from_env()
+    resolved_order_repository = (
+        order_repository if order_repository is not None else RedisOrderRepository.from_env()
+    )
     processor = TradeEngineMessageProcessor(
         publisher=publisher,
         settings=settings,
         gateway=gateway,
+        order_repository=resolved_order_repository,
         producer_name=producer_name,
     )
 

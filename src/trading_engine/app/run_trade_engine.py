@@ -28,6 +28,7 @@ def run(argv: list[str] | None = None) -> None:
             "trade_action_topic": settings.trade_action_topic,
             "order_update_topic": settings.order_update_topic,
             "exchange": settings.exchange,
+            "order_account_id": settings.order_account_id,
             "request_timeout_seconds": settings.request_timeout_seconds,
             "binance_ws_api_url": settings.binance_ws_api_url,
         },

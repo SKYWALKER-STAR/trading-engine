@@ -84,6 +84,7 @@ class TradeEngineSettings:
     binance_position_side: str = "BOTH"
     binance_new_order_resp_type: str = "ACK"
     binance_recv_window: int = 5000
+    order_account_id: str = "default"
 
     @classmethod
     def from_env(cls) -> "TradeEngineSettings":
@@ -101,6 +102,7 @@ class TradeEngineSettings:
             binance_position_side=getenv("BINANCE_POSITION_SIDE", "BOTH").strip().upper(),
             binance_new_order_resp_type=getenv("BINANCE_NEW_ORDER_RESP_TYPE", "ACK").strip().upper(),
             binance_recv_window=int(getenv("BINANCE_RECV_WINDOW", "5000")),
+            order_account_id=getenv("ORDER_ACCOUNT_ID", "default").strip() or "default",
         )
 
 

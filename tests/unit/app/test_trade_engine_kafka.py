@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from platform import processor
 from typing import Any
+
+import pytest
 
 from trading_engine.app.trade_engine_kafka import TradeEngineMessageProcessor
 from trading_engine.config.settings import TradeEngineSettings
@@ -12,7 +15,12 @@ from trading_engine.contracts.messages import (
     TradeActionPayload,
     build_event,
 )
-from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
+from trading_engine.trade.models import (
+    TrackedOrder,
+    TradeExecutionResult,
+    TradeExecutionStatus,
+    TradeOrderRequest,
+)
 from trading_engine.app.trade_engine_kafka import _to_trade_order_request
 
 
@@ -32,6 +40,34 @@ class _FakeGateway:
     def submit_order(self, request: TradeOrderRequest) -> TradeExecutionResult:
         self.requests.append(request)
         return self._result
+
+
+class _FailingGateway:
+    def submit_order(self, request: TradeOrderRequest) -> TradeExecutionResult:
+        raise TimeoutError(f"submission timed out for {request.client_order_id}")
+
+
+class _FakeOrderRepository:
+    def __init__(self) -> None:
+        self.orders: dict[str, TrackedOrder] = {}
+        self.saved: list[TrackedOrder] = []
+
+    def save(self, order: TrackedOrder) -> None:
+        self.orders[order.client_order_id] = order
+        self.saved.append(order)
+
+    def bind_order_id(
+        self,
+        *,
+        exchange: str,
+        account_id: str,
+        client_order_id: str,
+        symbol: str,
+        order_id: str,
+    ) -> TrackedOrder:
+        order = replace(self.orders[client_order_id], order_id=order_id)
+        self.orders[client_order_id] = order
+        return order
 
 
 def _trade_action_event(quantity: float | None = 0.2) -> EngineEvent[TradeActionPayload]:
@@ -82,6 +118,7 @@ def test_trade_engine_publishes_new_and_filled_updates() -> None:
 def test_trade_engine_generates_and_preserves_deterministic_client_order_id() -> None:
     now = datetime(2026, 8, 16, 9, 0, 1, tzinfo=UTC)
     publisher = _FakePublisher()
+    order_repository = _FakeOrderRepository()
     gateway = _FakeGateway(
         TradeExecutionResult(
             symbol="BTCUSDT",
@@ -94,6 +131,7 @@ def test_trade_engine_generates_and_preserves_deterministic_client_order_id() ->
         publisher=publisher,
         settings=TradeEngineSettings(),
         gateway=gateway,
+        order_repository=order_repository,
     )
     event = _trade_action_event()
 
@@ -107,6 +145,32 @@ def test_trade_engine_generates_and_preserves_deterministic_client_order_id() ->
     assert len(request.client_order_id) == 35
     assert request.metadata["newClientOrderId"] == request.client_order_id
     assert publisher.published[0][1].payload.client_order_id == request.client_order_id
+    assert [order.status.value for order in order_repository.saved] == [
+        "pending_submit",
+        "new",
+    ]
+    saved_order = order_repository.orders[request.client_order_id]
+    assert saved_order.order_id == "ord-client-1"
+    assert saved_order.client_order_id == request.client_order_id
+
+
+def test_trade_engine_persists_unknown_when_submission_raises() -> None:
+    order_repository = _FakeOrderRepository()
+    processor = TradeEngineMessageProcessor(
+        publisher=_FakePublisher(),
+        settings=TradeEngineSettings(),
+        gateway=_FailingGateway(),
+        order_repository=order_repository,
+    )
+
+    with pytest.raises(TimeoutError):
+        processor.handle_trade_action(_trade_action_event())
+
+    assert [order.status.value for order in order_repository.saved] == [
+        "pending_submit",
+        "unknown",
+    ]
+    assert order_repository.saved[-1].metadata["submission_error"] == "TimeoutError"
 
 
 def test_trade_engine_publishes_rejected_update_only() -> None:
