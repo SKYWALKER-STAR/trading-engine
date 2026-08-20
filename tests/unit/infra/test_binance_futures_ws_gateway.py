@@ -200,8 +200,13 @@ def test_binance_gateway_places_real_market_order() -> None:
         api_secret=api_secret,
     )
     request_id = str(uuid4())
+    client_order_id = f"te-{request_id.replace('-', '')}"
 
-    print(f"Placing real order on Binance: symbol={symbol}, side={side}, quantity={quantity}, request_id={request_id}")
+    print(
+        "Placing real order on Binance: "
+        f"symbol={symbol}, side={side}, quantity={quantity}, "
+        f"request_id={request_id}, client_order_id={client_order_id}"
+    )
 
     result = gateway.submit_order(
         TradeOrderRequest(
@@ -212,16 +217,22 @@ def test_binance_gateway_places_real_market_order() -> None:
             requested_at=datetime.now(UTC),
             correlation_id=request_id,
             causation_id=request_id,
-            metadata={"newOrderRespType": "RESULT","positionSide": "LONG" if side == "BUY" else "SHORT"},
+            client_order_id=client_order_id,
+            metadata={
+                "newOrderRespType": "RESULT",
+                "positionSide": "LONG" if side == "BUY" else "SHORT",
+            },
         )
     )
     print(f"status: {result.status}")
     print(f"order_id: {result.order_id}")
+    print(f"client_order_id: {result.client_order_id}")
     print(f"filled_quantity: {result.filled_quantity}")
-    print(f"metadata: {result.metadata}")   
+    print(f"metadata: {result.metadata}")
     assert result.status in {
         TradeExecutionStatus.NEW,
         TradeExecutionStatus.PARTIALLY_FILLED,
         TradeExecutionStatus.FILLED,
     }, f"order was rejected: {result.metadata}"
     assert result.order_id is not None
+    assert result.client_order_id == client_order_id
