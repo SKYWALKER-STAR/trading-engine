@@ -76,6 +76,7 @@ class PositionManager:
 
     def handle_order_event(self, event: PositionOrderEvent) -> PositionDecision:
         current = self._load(event.symbol, event.updated_at)
+        self._validate_order_id_before_position_change(current, event)
         order_id = event.order_id or current.active_order_id
         client_order_id = event.client_order_id or current.active_client_order_id
         next_state = current
@@ -226,6 +227,41 @@ class PositionManager:
             )
 
         return self._persist_and_publish(current, next_state, event.updated_at, reason, None, failed_action)
+
+    @staticmethod
+    def _validate_order_id_before_position_change(
+        current: PositionState,
+        event: PositionOrderEvent,
+    ) -> None:
+        """Reject an execution update unless it identifies the active order exactly."""
+        execution_statuses = (
+            OrderUpdateStatus.PARTIALLY_FILLED,
+            OrderUpdateStatus.FILLED,
+        )
+        terminal_statuses = (
+            OrderUpdateStatus.CANCELED,
+            OrderUpdateStatus.REJECTED,
+        )
+        if event.status not in execution_statuses + terminal_statuses:
+            return
+
+        # A rejection can occur before Binance assigns an exchange order ID.
+        # In that case there is no active exchange identity to validate.
+        if event.status in terminal_statuses and current.active_order_id is None:
+            return
+        if event.order_id is None:
+            raise ValueError(
+                f"{event.status.value} update for {event.symbol} is missing order_id"
+            )
+        if current.active_order_id is None:
+            raise ValueError(
+                f"{event.status.value} update for {event.symbol} has no active order to match"
+            )
+        if event.order_id != current.active_order_id:
+            raise ValueError(
+                f"Order update for {event.symbol} belongs to {event.order_id}, "
+                f"but active order is {current.active_order_id}"
+            )
 
     def recover_stale_transition(
         self,

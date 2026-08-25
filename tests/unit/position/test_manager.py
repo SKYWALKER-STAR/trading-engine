@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
 from trading_engine.position.manager import PositionManager
 from trading_engine.position.models import (
@@ -159,6 +161,70 @@ def test_partially_filled_order_keeps_opening_state_and_updates_quantity() -> No
     assert decision.state.direction is PositionDirection.LONG
     assert decision.state.lifecycle is PositionLifecycle.OPENING_LONG
     assert decision.state.quantity == 0.10
+
+
+@pytest.mark.parametrize(
+    ("status", "order_id"),
+    [
+        (OrderUpdateStatus.PARTIALLY_FILLED, None),
+        (OrderUpdateStatus.FILLED, None),
+        (OrderUpdateStatus.PARTIALLY_FILLED, "ord-other"),
+        (OrderUpdateStatus.FILLED, "ord-other"),
+        (OrderUpdateStatus.CANCELED, None),
+        (OrderUpdateStatus.REJECTED, "ord-other"),
+    ],
+)
+def test_execution_update_requires_matching_active_order_id(
+    status: OrderUpdateStatus,
+    order_id: str | None,
+) -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-1",
+        )
+    )
+    state_before_invalid_update = repository.state["BTCUSDT"]
+
+    with pytest.raises(ValueError, match="order"):
+        manager.handle_order_event(
+            PositionOrderEvent(
+                symbol="BTCUSDT",
+                status=status,
+                updated_at=now + timedelta(seconds=2),
+                order_id=order_id,
+                filled_quantity=0.1,
+            )
+        )
+
+    assert repository.state["BTCUSDT"] == state_before_invalid_update
+
+
+def test_execution_update_requires_an_active_order_id() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    state_before_invalid_update = repository.state["BTCUSDT"]
+
+    with pytest.raises(ValueError, match="no active order"):
+        manager.handle_order_event(
+            PositionOrderEvent(
+                symbol="BTCUSDT",
+                status=OrderUpdateStatus.FILLED,
+                updated_at=now + timedelta(seconds=1),
+                order_id="ord-1",
+                filled_quantity=0.1,
+            )
+        )
+
+    assert repository.state["BTCUSDT"] == state_before_invalid_update
 
 
 def test_rejected_order_rolls_back_and_emits_failed_event() -> None:
