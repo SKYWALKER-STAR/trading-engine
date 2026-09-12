@@ -21,6 +21,9 @@ from trading_engine.position.models import (
 from trading_engine.position.repository import PositionRepository
 
 
+ACTIVE_ORDER_CUMULATIVE_FILLED_KEY = "active_order_cumulative_filled"
+
+
 class PositionManager:
     """Event-driven state machine that manages positions and emits trade actions."""
 
@@ -131,6 +134,7 @@ class PositionManager:
                     updated_at=event.updated_at,
                     last_order_id=order_id,
                     last_client_order_id=client_order_id,
+                    metadata=self._remove_active_fill_metadata(current.metadata),
                 )
                 reason = "order_filled_open_long"
             elif current.lifecycle is PositionLifecycle.OPENING_SHORT:
@@ -142,6 +146,7 @@ class PositionManager:
                     updated_at=event.updated_at,
                     last_order_id=order_id,
                     last_client_order_id=client_order_id,
+                    metadata=self._remove_active_fill_metadata(current.metadata),
                 )
                 reason = "order_filled_open_short"
             elif current.lifecycle is PositionLifecycle.CLOSING_LONG:
@@ -161,16 +166,26 @@ class PositionManager:
                 )
                 reason = "order_filled_close_short"
         elif event.status is OrderUpdateStatus.PARTIALLY_FILLED:
-            filled_quantity = event.filled_quantity if event.filled_quantity is not None else current.quantity
+            delta_filled_quantity, next_cumulative_filled = self._fill_delta(current, event)
+            if delta_filled_quantity <= 0.0:
+                return self._persist_and_publish(
+                    current,
+                    current,
+                    event.updated_at,
+                    "order_partially_filled_ignored",
+                    None,
+                    None,
+                )
             if current.lifecycle is PositionLifecycle.OPENING_LONG:
                 next_state = self._update_state(
                     current,
                     direction=PositionDirection.LONG,
                     lifecycle=PositionLifecycle.OPENING_LONG,
-                    quantity=filled_quantity,
+                    quantity=current.quantity + delta_filled_quantity,
                     updated_at=event.updated_at,
                     active_order_id=order_id,
                     active_client_order_id=client_order_id,
+                    metadata=self._active_fill_metadata(current.metadata, next_cumulative_filled),
                 )
                 reason = "order_partially_filled_open_long"
             elif current.lifecycle is PositionLifecycle.OPENING_SHORT:
@@ -178,14 +193,15 @@ class PositionManager:
                     current,
                     direction=PositionDirection.SHORT,
                     lifecycle=PositionLifecycle.OPENING_SHORT,
-                    quantity=filled_quantity,
+                    quantity=current.quantity + delta_filled_quantity,
                     updated_at=event.updated_at,
                     active_order_id=order_id,
                     active_client_order_id=client_order_id,
+                    metadata=self._active_fill_metadata(current.metadata, next_cumulative_filled),
                 )
                 reason = "order_partially_filled_open_short"
             elif current.lifecycle is PositionLifecycle.CLOSING_LONG:
-                remaining_quantity = max(current.quantity - filled_quantity, 0.0)
+                remaining_quantity = max(current.quantity - delta_filled_quantity, 0.0)
                 next_state = self._update_state(
                     current,
                     direction=PositionDirection.LONG,
@@ -194,10 +210,11 @@ class PositionManager:
                     updated_at=event.updated_at,
                     active_order_id=order_id,
                     active_client_order_id=client_order_id,
+                    metadata=self._active_fill_metadata(current.metadata, next_cumulative_filled),
                 )
                 reason = "order_partially_filled_close_long"
             elif current.lifecycle is PositionLifecycle.CLOSING_SHORT:
-                remaining_quantity = max(current.quantity - filled_quantity, 0.0)
+                remaining_quantity = max(current.quantity - delta_filled_quantity, 0.0)
                 next_state = self._update_state(
                     current,
                     direction=PositionDirection.SHORT,
@@ -206,6 +223,7 @@ class PositionManager:
                     updated_at=event.updated_at,
                     active_order_id=order_id,
                     active_client_order_id=client_order_id,
+                    metadata=self._active_fill_metadata(current.metadata, next_cumulative_filled),
                 )
                 reason = "order_partially_filled_close_short"
         elif event.status in (OrderUpdateStatus.CANCELED, OrderUpdateStatus.REJECTED):
@@ -310,6 +328,8 @@ class PositionManager:
         now: datetime,
         signal: PositionSignalCommand,
     ) -> PositionState:
+        metadata = dict(current.metadata)
+        metadata.pop(ACTIVE_ORDER_CUMULATIVE_FILLED_KEY, None)
         return PositionState(
             symbol=current.symbol,
             direction=current.direction,
@@ -321,7 +341,7 @@ class PositionManager:
             last_client_order_id=current.last_client_order_id,
             updated_at=now,
             metadata={
-                **current.metadata,
+                **metadata,
                 "signal_direction": signal.direction.value,
                 "signal_score": signal.score,
             },
@@ -339,6 +359,7 @@ class PositionManager:
         active_client_order_id: str | None = None,
         last_order_id: str | None = None,
         last_client_order_id: str | None = None,
+        metadata: dict[str, str | float] | None = None,
     ) -> PositionState:
         return PositionState(
             symbol=current.symbol,
@@ -354,8 +375,57 @@ class PositionManager:
                 else last_client_order_id
             ),
             updated_at=updated_at,
-            metadata=dict(current.metadata),
+            metadata=dict(current.metadata) if metadata is None else dict(metadata),
         )
+
+    @staticmethod
+    def _active_fill_metadata(
+        metadata: dict[str, str | float],
+        cumulative_filled_quantity: float,
+    ) -> dict[str, str | float]:
+        next_metadata = dict(metadata)
+        next_metadata[ACTIVE_ORDER_CUMULATIVE_FILLED_KEY] = float(cumulative_filled_quantity)
+        return next_metadata
+
+    @staticmethod
+    def _remove_active_fill_metadata(metadata: dict[str, str | float]) -> dict[str, str | float]:
+        next_metadata = dict(metadata)
+        next_metadata.pop(ACTIVE_ORDER_CUMULATIVE_FILLED_KEY, None)
+        return next_metadata
+
+    @staticmethod
+    def _float_from_metadata(value: str | float | None) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, float):
+            return value
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+
+    @classmethod
+    def _fill_delta(
+        cls,
+        current: PositionState,
+        event: PositionOrderEvent,
+    ) -> tuple[float, float]:
+        previous_cumulative_filled = cls._float_from_metadata(
+            current.metadata.get(ACTIVE_ORDER_CUMULATIVE_FILLED_KEY)
+        )
+        if event.cumulative_filled_quantity is not None:
+            current_cumulative_filled = float(event.cumulative_filled_quantity)
+            delta_filled_quantity = max(
+                current_cumulative_filled - previous_cumulative_filled,
+                0.0,
+            )
+            return delta_filled_quantity, max(current_cumulative_filled, previous_cumulative_filled)
+
+        raw_delta = event.last_filled_quantity
+        if raw_delta is None:
+            raw_delta = event.filled_quantity
+        delta_filled_quantity = 0.0 if raw_delta is None else max(float(raw_delta), 0.0)
+        return delta_filled_quantity, previous_cumulative_filled + delta_filled_quantity
 
     @staticmethod
     def _rollback(
@@ -382,6 +452,7 @@ class PositionManager:
                 last_client_order_id=terminal_client_order_id,
             )
         if current.lifecycle in (PositionLifecycle.CLOSE_LONG, PositionLifecycle.CLOSING_LONG):
+            metadata = PositionManager._remove_active_fill_metadata(current.metadata)
             return PositionState(
                 symbol=current.symbol,
                 direction=PositionDirection.LONG,
@@ -390,9 +461,10 @@ class PositionManager:
                 last_order_id=terminal_order_id,
                 last_client_order_id=terminal_client_order_id,
                 updated_at=updated_at,
-                metadata=dict(current.metadata),
+                metadata=metadata,
             )
         if current.lifecycle in (PositionLifecycle.CLOSE_SHORT, PositionLifecycle.CLOSING_SHORT):
+            metadata = PositionManager._remove_active_fill_metadata(current.metadata)
             return PositionState(
                 symbol=current.symbol,
                 direction=PositionDirection.SHORT,
@@ -401,8 +473,9 @@ class PositionManager:
                 last_order_id=terminal_order_id,
                 last_client_order_id=terminal_client_order_id,
                 updated_at=updated_at,
-                metadata=dict(current.metadata),
+                metadata=metadata,
             )
+        metadata = PositionManager._remove_active_fill_metadata(current.metadata)
         return PositionState(
             symbol=current.symbol,
             direction=current.direction,
@@ -415,7 +488,7 @@ class PositionManager:
                 terminal_client_order_id or current.last_client_order_id
             ),
             updated_at=updated_at,
-            metadata=dict(current.metadata),
+            metadata=metadata,
         )
 
     @staticmethod

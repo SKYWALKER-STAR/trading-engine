@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from trading_engine.app.position_engine_kafka import PositionEngineMessageProcessor
 from trading_engine.contracts.messages import (
@@ -27,6 +28,20 @@ class InMemoryPositionRepository:
 
     def save(self, state: PositionState) -> None:
         self.state[state.symbol] = state
+
+
+class _SpyManager:
+    def __init__(self) -> None:
+        self.order_event: Any | None = None
+
+    def handle_order_event(self, event: Any) -> None:
+        self.order_event = event
+
+    def recover_stale_transition(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def handle_signal(self, *_: Any, **__: Any) -> None:
+        return None
 
 
 def test_risk_approved_signal_drives_position_manager() -> None:
@@ -119,3 +134,33 @@ def test_order_update_event_advances_position_state() -> None:
     assert saved_state.lifecycle.value == "opening_long"
     assert saved_state.active_order_id == "ord-1"
     assert saved_state.active_client_order_id == "te-client-1"
+
+
+def test_order_update_event_passes_fill_and_trade_fields_to_manager() -> None:
+    now = datetime.now(UTC)
+    manager = _SpyManager()
+    processor = PositionEngineMessageProcessor(manager)
+    event = build_event(
+        EngineEventType.ORDER_UPDATE_RECEIVED,
+        OrderUpdatePayload(
+            symbol="BTCUSDT",
+            order_id="ord-2",
+            client_order_id="te-client-2",
+            status="partially_filled",
+            updated_at=now,
+            filled_quantity=0.50,
+            last_filled_quantity=0.20,
+            cumulative_filled_quantity=0.50,
+            trade_id="trade-123",
+        ),
+        producer="trade-engine",
+        occurred_at=now,
+    )
+
+    processor.handle_order_update(event)
+
+    assert manager.order_event is not None
+    assert manager.order_event.filled_quantity == 0.50
+    assert manager.order_event.last_filled_quantity == 0.20
+    assert manager.order_event.cumulative_filled_quantity == 0.50
+    assert manager.order_event.trade_id == "trade-123"

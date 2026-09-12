@@ -171,6 +171,9 @@ class PositionEngineMessageProcessor:
                 order_id=payload.order_id,
                 client_order_id=payload.client_order_id,
                 filled_quantity=payload.filled_quantity,
+                last_filled_quantity=payload.last_filled_quantity,
+                cumulative_filled_quantity=payload.cumulative_filled_quantity,
+                trade_id=payload.trade_id,
                 metadata=dict(payload.metadata),
             )
         )

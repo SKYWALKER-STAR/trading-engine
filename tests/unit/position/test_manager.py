@@ -163,6 +163,85 @@ def test_partially_filled_order_keeps_opening_state_and_updates_quantity() -> No
     assert decision.state.quantity == 0.10
 
 
+def test_partially_filled_order_uses_cumulative_delta_across_multiple_updates() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-1",
+        )
+    )
+
+    first = manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.PARTIALLY_FILLED,
+            updated_at=now + timedelta(seconds=2),
+            order_id="ord-1",
+            cumulative_filled_quantity=0.10,
+            last_filled_quantity=0.10,
+            trade_id="trade-1",
+        )
+    )
+    second = manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.PARTIALLY_FILLED,
+            updated_at=now + timedelta(seconds=3),
+            order_id="ord-1",
+            cumulative_filled_quantity=0.15,
+            last_filled_quantity=0.05,
+            trade_id="trade-2",
+        )
+    )
+
+    assert first.state.quantity == 0.10
+    assert second.state.quantity == 0.15
+
+
+def test_partially_filled_order_ignores_replayed_cumulative_update() -> None:
+    now = datetime.now(UTC)
+    repository = InMemoryPositionRepository(state={})
+    manager = PositionManager(repository=repository)
+    manager.handle_signal(build_signal(SignalDirection.LONG, now))
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.NEW,
+            updated_at=now + timedelta(seconds=1),
+            order_id="ord-1",
+        )
+    )
+    manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.PARTIALLY_FILLED,
+            updated_at=now + timedelta(seconds=2),
+            order_id="ord-1",
+            cumulative_filled_quantity=0.10,
+            trade_id="trade-1",
+        )
+    )
+
+    replayed = manager.handle_order_event(
+        PositionOrderEvent(
+            symbol="BTCUSDT",
+            status=OrderUpdateStatus.PARTIALLY_FILLED,
+            updated_at=now + timedelta(seconds=3),
+            order_id="ord-1",
+            cumulative_filled_quantity=0.10,
+            trade_id="trade-1-replay",
+        )
+    )
+
+    assert replayed.state.quantity == 0.10
+
+
 @pytest.mark.parametrize(
     ("status", "order_id"),
     [

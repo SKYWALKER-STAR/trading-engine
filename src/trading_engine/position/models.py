@@ -75,6 +75,9 @@ class PositionOrderEvent:
     order_id: str | None = None
     client_order_id: str | None = None
     filled_quantity: float | None = None
+    last_filled_quantity: float | None = None
+    cumulative_filled_quantity: float | None = None
+    trade_id: str | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
 
 
