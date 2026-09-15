@@ -157,7 +157,10 @@ class PositionViewProjectorSettings:
             redis_url=getenv("POSITION_VIEW_REDIS_URL", getenv("POSITION_REDIS_URL", "redis://127.0.0.1:6379/0")),
             key_prefix=getenv(
                 "POSITION_VIEW_KEY_PREFIX",
-                getenv("REDIS_POSITION_KEY_PREFIX", "binance:position:usdt_futures"),
+                getenv(
+                    "POSITION_REDIS_KEY_PREFIX",
+                    getenv("REDIS_POSITION_KEY_PREFIX", "binance:position:usdt_futures"),
+                ),
             ),
             poll_interval_seconds=float(getenv("POSITION_VIEW_POLL_INTERVAL_SECONDS", "2.0")),
             enable_detail_keys=detail_raw in ("1", "true", "yes", "on"),

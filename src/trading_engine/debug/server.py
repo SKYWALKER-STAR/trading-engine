@@ -73,6 +73,9 @@ HTML_PAGE = """<!doctype html>
       <main class="panel">
         <div id="state" class="state-card"></div>
 
+        <h3>Redis keys</h3>
+        <div id="keys" class="state-card"></div>
+
         <h3>State machine view</h3>
         <div id="graph" class="graph"></div>
 
@@ -98,6 +101,7 @@ HTML_PAGE = """<!doctype html>
       const historyHost = document.getElementById('history');
       const lifecycleHost = document.getElementById('lifecycle');
       const graphHost = document.getElementById('graph');
+      const keysHost = document.getElementById('keys');
 
       const stateSequence = [
         'flat', 'open_long', 'opening_long', 'long', 'close_long', 'closing_long',
@@ -168,6 +172,40 @@ HTML_PAGE = """<!doctype html>
         `;
       }
 
+      function renderKeys(keysPayload, stateSourceKey) {
+        if (!keysPayload || !keysPayload.keys) {
+          keysHost.innerHTML = '<div class="muted">No key diagnostics available.</div>';
+          return;
+        }
+
+        const keys = keysPayload.keys;
+        const exists = keysPayload.exists || {};
+        const entries = Object.entries(keys).map(([name, key]) => {
+          const present = exists[name] ? 'yes' : 'no';
+          const selected = stateSourceKey === key ? ' (active source)' : '';
+          return `
+            <tr>
+              <td>${name}</td>
+              <td>${key}${selected}</td>
+              <td>${present}</td>
+            </tr>
+          `;
+        }).join('');
+
+        keysHost.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>name</th>
+                <th>key</th>
+                <th>exists</th>
+              </tr>
+            </thead>
+            <tbody>${entries}</tbody>
+          </table>
+        `;
+      }
+
       function renderHistory(entries) {
         if (!entries || entries.length === 0) {
           historyHost.innerHTML = '<tr><td colspan="4" class="muted">No transitions recorded yet.</td></tr>';
@@ -189,9 +227,11 @@ HTML_PAGE = """<!doctype html>
         try {
           const state = await fetchJson(`/api/state?symbol=${encodeURIComponent(symbol)}`);
           const history = await fetchJson(`/api/history?symbol=${encodeURIComponent(symbol)}`);
+          const keys = await fetchJson(`/api/keys?symbol=${encodeURIComponent(symbol)}`);
           const currentState = state.state || state;
           const historyEntries = history.history || history;
           renderState(currentState);
+          renderKeys(keys, state.state_source_key || null);
           renderGraph(
             currentState && (currentState.current_lifecycle || currentState.lifecycle || 'flat'),
             currentState && currentState.previous_lifecycle,
@@ -202,6 +242,7 @@ HTML_PAGE = """<!doctype html>
           stateHost.innerHTML = `<div class="muted">${error.message}</div>`;
           historyHost.innerHTML = '<tr><td colspan="4" class="muted">Unable to load state.</td></tr>';
           graphHost.innerHTML = '<div class="muted">No graph available.</div>';
+          keysHost.innerHTML = '<div class="muted">Unable to load key diagnostics.</div>';
         }
       }
 
@@ -230,14 +271,20 @@ class _PositionDebugHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/state":
             symbol = parse_qs(parsed.query).get("symbol", ["BTCUSDT"])[0]
-            state = self.server.store.get_state(symbol)
-            payload = {"symbol": symbol, "state": state}
+            state, state_source_key = self.server.store.get_state_with_source(symbol)
+            payload = {"symbol": symbol, "state": state, "state_source_key": state_source_key}
             self._send_json(payload)
             return
 
         if parsed.path == "/api/history":
             symbol = parse_qs(parsed.query).get("symbol", ["BTCUSDT"])[0]
             payload = {"symbol": symbol, "history": self.server.store.get_history(symbol)}
+            self._send_json(payload)
+            return
+
+        if parsed.path == "/api/keys":
+            symbol = parse_qs(parsed.query).get("symbol", ["BTCUSDT"])[0]
+            payload = self.server.store.get_key_info(symbol)
             self._send_json(payload)
             return
 
@@ -267,7 +314,10 @@ def run(argv: list[str] | None = None) -> None:
     host = getenv("POSITION_DEBUG_HOST", "127.0.0.1")
     port = int(getenv("POSITION_DEBUG_PORT", "8001"))
     redis_url = getenv("POSITION_REDIS_URL", "redis://127.0.0.1:6379/0")
-    key_prefix = getenv("POSITION_REDIS_KEY_PREFIX", "position")
+    key_prefix = getenv(
+        "POSITION_VIEW_KEY_PREFIX",
+        getenv("POSITION_REDIS_KEY_PREFIX", "binance:position:usdt_futures"),
+    )
 
     store = PositionDebugStore(redis_url=redis_url, key_prefix=key_prefix)
     server = ThreadingHTTPServer((host, port), _PositionDebugHandler)

@@ -12,11 +12,15 @@ class PositionDebugStore:
         self,
         redis: Any | None = None,
         redis_url: str = "redis://127.0.0.1:6379/0",
-        key_prefix: str = "position",
+        key_prefix: str = "binance:position:usdt_futures",
     ) -> None:
         self._redis = redis
         self._redis_url = redis_url
         self._key_prefix = key_prefix
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        return symbol.strip().upper()
 
     def _get_client(self) -> Any:
         if self._redis is not None:
@@ -31,10 +35,16 @@ class PositionDebugStore:
         return self._redis
 
     def _state_key(self, symbol: str) -> str:
-        return f"{self._key_prefix}:debug:state:{symbol}"
+        normalized = self._normalize_symbol(symbol)
+        return f"{self._key_prefix}:debug:state:{normalized}"
 
     def _history_key(self, symbol: str) -> str:
-        return f"{self._key_prefix}:debug:history:{symbol}"
+        normalized = self._normalize_symbol(symbol)
+        return f"{self._key_prefix}:debug:history:{normalized}"
+
+    def _view_state_key(self, symbol: str) -> str:
+        normalized = self._normalize_symbol(symbol)
+        return f"{self._key_prefix}:view:state:{normalized}:v1"
 
     def record_transition(
         self,
@@ -51,8 +61,9 @@ class PositionDebugStore:
         active_order_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        normalized_symbol = self._normalize_symbol(symbol)
         payload = {
-            "symbol": symbol,
+            "symbol": normalized_symbol,
             "direction": direction,
             "previous_direction": previous_direction,
             "lifecycle": current_lifecycle,
@@ -66,16 +77,47 @@ class PositionDebugStore:
             "metadata": metadata or {},
         }
         client = self._get_client()
-        client.set(self._state_key(symbol), json.dumps(payload, ensure_ascii=True, sort_keys=True))
-        client.lpush(self._history_key(symbol), json.dumps(payload, ensure_ascii=True, sort_keys=True))
-        client.ltrim(self._history_key(symbol), 0, 19)
+        client.set(self._state_key(normalized_symbol), json.dumps(payload, ensure_ascii=True, sort_keys=True))
+        client.lpush(self._history_key(normalized_symbol), json.dumps(payload, ensure_ascii=True, sort_keys=True))
+        client.ltrim(self._history_key(normalized_symbol), 0, 19)
         return payload
 
     def get_state(self, symbol: str) -> dict[str, Any] | None:
-        raw = self._get_client().get(self._state_key(symbol))
+        state, _ = self.get_state_with_source(symbol)
+        return state
+
+    def get_state_with_source(self, symbol: str) -> tuple[dict[str, Any] | None, str | None]:
+        client = self._get_client()
+        view_key = self._view_state_key(symbol)
+        debug_key = self._state_key(symbol)
+
+        raw = client.get(view_key)
+        source_key = view_key if raw is not None else None
         if raw is None:
-            return None
-        return json.loads(raw)
+            raw = client.get(debug_key)
+            if raw is not None:
+                source_key = debug_key
+        if raw is None:
+            return None, None
+        return json.loads(raw), source_key
+
+    def get_key_info(self, symbol: str) -> dict[str, Any]:
+        normalized = self._normalize_symbol(symbol)
+        client = self._get_client()
+        keys = {
+            "view_state_key": self._view_state_key(normalized),
+            "debug_state_key": self._state_key(normalized),
+            "debug_history_key": self._history_key(normalized),
+        }
+
+        return {
+            "symbol": normalized,
+            "keys": keys,
+            "exists": {
+                name: bool(client.exists(key))
+                for name, key in keys.items()
+            },
+        }
 
     def get_history(self, symbol: str) -> list[dict[str, Any]]:
         values = self._get_client().lrange(self._history_key(symbol), 0, 19)

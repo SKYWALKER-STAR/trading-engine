@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+from os import getenv
 
 from trading_engine.app.position_engine_kafka import build_position_engine_consumer
 from trading_engine.common.logger import configure_logging, get_logger
 from trading_engine.config.settings import PositionEngineSettings
+from trading_engine.debug.dashboard import PositionDebugStore
 from trading_engine.infra.redis_position_repository import RedisPositionRepository
 
 
@@ -18,7 +20,19 @@ def run(argv: list[str] | None = None) -> None:
     configure_logging()
     settings = PositionEngineSettings.from_env()
     repository = RedisPositionRepository.from_env()
-    consumer = build_position_engine_consumer(repository=repository, settings=settings)
+    debug_key_prefix = getenv(
+        "POSITION_VIEW_KEY_PREFIX",
+        getenv("POSITION_REDIS_KEY_PREFIX", "binance:position:usdt_futures"),
+    )
+    debug_store = PositionDebugStore(
+        redis_url=getenv("POSITION_REDIS_URL", "redis://127.0.0.1:6379/0"),
+        key_prefix=debug_key_prefix,
+    )
+    consumer = build_position_engine_consumer(
+        repository=repository,
+        settings=settings,
+        debug_store=debug_store,
+    )
 
     LOGGER.info(
         "Position engine runner started",

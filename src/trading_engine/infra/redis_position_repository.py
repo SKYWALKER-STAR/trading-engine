@@ -15,7 +15,7 @@ class RedisPositionRepository(PositionRepository):
     Stores one JSON document per symbol under a configurable key prefix.
     """
 
-    def __init__(self, redis_url: str, key_prefix: str = "position") -> None:
+    def __init__(self, redis_url: str, key_prefix: str = "binance:position:usdt_futures") -> None:
         self._redis_url = redis_url
         self._key_prefix = key_prefix
         self._client: Any | None = None
@@ -23,11 +23,17 @@ class RedisPositionRepository(PositionRepository):
     @classmethod
     def from_env(cls) -> "RedisPositionRepository":
         redis_url = getenv("POSITION_REDIS_URL", "redis://127.0.0.1:6379/0")
-        key_prefix = getenv("POSITION_REDIS_KEY_PREFIX", "position")
+        key_prefix = getenv(
+            "POSITION_VIEW_KEY_PREFIX",
+            getenv("POSITION_REDIS_KEY_PREFIX", "binance:position:usdt_futures"),
+        )
         return cls(redis_url=redis_url, key_prefix=key_prefix)
 
     def get(self, symbol: str) -> PositionState | None:
-        raw = self._get_client().get(self._key(symbol))
+        client = self._get_client()
+        raw = client.get(self._view_state_key(symbol))
+        if raw is None:
+            raw = client.get(self._legacy_key(symbol))
         if raw is None:
             return None
         payload = json.loads(raw)
@@ -63,10 +69,23 @@ class RedisPositionRepository(PositionRepository):
             "updated_at": state.updated_at.isoformat() if state.updated_at is not None else None,
             "metadata": state.metadata,
         }
-        self._get_client().set(self._key(state.symbol), json.dumps(payload, ensure_ascii=True))
+        canonical = json.dumps(payload, ensure_ascii=True)
+        client = self._get_client()
+        client.set(self._view_state_key(state.symbol), canonical)
+        # Keep writing the legacy key during migration.
+        client.set(self._legacy_key(state.symbol), canonical)
 
-    def _key(self, symbol: str) -> str:
-        return f"{self._key_prefix}:{symbol}"
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        return symbol.strip().upper()
+
+    def _view_state_key(self, symbol: str) -> str:
+        normalized = self._normalize_symbol(symbol)
+        return f"{self._key_prefix}:view:state:{normalized}:v1"
+
+    def _legacy_key(self, symbol: str) -> str:
+        normalized = self._normalize_symbol(symbol)
+        return f"{self._key_prefix}:{normalized}"
 
     def _get_client(self) -> Any:
         if self._client is not None:

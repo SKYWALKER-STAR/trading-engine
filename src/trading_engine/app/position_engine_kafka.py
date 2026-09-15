@@ -20,6 +20,7 @@ from trading_engine.contracts.messages import (
     TradeActionPayload,
     build_event,
 )
+from trading_engine.debug.dashboard import PositionDebugStore
 from trading_engine.infra.bus.base import EventBus
 from trading_engine.infra.kafka_event_bus import KafkaEventConsumer, KafkaEventPublisher
 from trading_engine.position.manager import PositionManager
@@ -184,6 +185,7 @@ def build_position_engine_consumer(
     settings: PositionEngineSettings,
     *,
     producer_name: str = "position-engine",
+    debug_store: PositionDebugStore | None = None,
 ) -> KafkaEventConsumer:
     publisher = KafkaEventPublisher.from_env()
     manager = PositionManager(
@@ -196,6 +198,7 @@ def build_position_engine_consumer(
         state_topic=TopicNames.POSITION_STATE_CHANGED,
         action_topic=TopicNames.TRADE_ACTION_REQUESTED,
         failed_action_topic=TopicNames.TRADE_ACTION_FAILED,
+        debug_store=debug_store,
     )
     processor = PositionEngineMessageProcessor(
         manager,
