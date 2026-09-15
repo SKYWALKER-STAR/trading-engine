@@ -10,6 +10,7 @@ _FORMAT_OVERRIDES = {
     "trading_engine.infra.kafka_event_bus": "%(asctime)s %(levelname)s [%(name)s] [kafka] %(message)s",
     "trading_engine.infra.redis_position_view_projector": "%(asctime)s %(levelname)s [%(name)s] [redis-view] %(message)s",
     "trading_engine.strategy.rules": "%(asctime)s %(levelname)s [%(name)s] [strategy] %(message)s",
+    "trading_engine.app.run_strategy_engine_factor": "%(asctime)s %(levelname)s [%(name)s] [strategy-engine] %(symbol)s %(direction)s %(message)s %(reason)s",
 }
 
 
