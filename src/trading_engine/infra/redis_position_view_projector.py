@@ -37,7 +37,7 @@ class RedisPositionViewProjector:
         """Project raw hash snapshots to view state keys once."""
         raw_positions = self._get_client().hgetall(self._raw_snapshot_key)
         if not raw_positions:
-            LOGGER.info("No raw positions found to project", extra={"raw_snapshot_key": self._raw_snapshot_key})
+            LOGGER.debug("No raw positions found to project", extra={"raw_snapshot_key": self._raw_snapshot_key})
             return {"symbols": 0, "detail_keys": 0, "updated": 0, "unchanged": 0}
 
         by_symbol: dict[str, list[tuple[str, dict[str, Any]]]] = {}

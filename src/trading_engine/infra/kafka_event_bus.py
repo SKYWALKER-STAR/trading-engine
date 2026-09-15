@@ -42,7 +42,7 @@ class KafkaEventPublisher:
     def publish(self, topic: str, event: EngineEvent[Any], key: str) -> None:
         future = self._get_producer().send(topic=topic, key=key.encode("utf-8"), value=encode_event(event))
         future.get(timeout=10)
-        LOGGER.info(
+        LOGGER.debug(
             "Published engine event to Kafka",
             extra={"topic": topic, "key": key, "event_type": event.event_type.value},
         )

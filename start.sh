@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 set -u
-
+source /etc/profile.d/clash-for-linux.sh
+proxy_on
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_PYTHON="${ENGINE_PYTHON:-${SCRIPT_DIR}/.trading/bin/python}"
 

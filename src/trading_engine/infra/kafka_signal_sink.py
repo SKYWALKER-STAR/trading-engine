@@ -63,7 +63,7 @@ class KafkaSignalSink:
             value=encode_event(event),
         )
         future.get(timeout=10)
-        LOGGER.info(
+        LOGGER.debug(
             "Published strategy signal to Kafka",
             extra={"topic": self._topic, "symbol": signal.symbol, "direction": signal.direction.value},
         )
