@@ -543,6 +543,11 @@ class PositionManager:
                     current_lifecycle=current.lifecycle.value,
                     reason=reason,
                     occurred_at=occurred_at,
+                    direction=current.direction.value,
+                    previous_direction=previous.direction.value,
+                    quantity=current.quantity,
+                    previous_quantity=previous.quantity,
+                    active_order_id=current.active_order_id,
                     metadata={
                         "previous_direction": previous.direction.value,
                         "current_direction": current.direction.value,

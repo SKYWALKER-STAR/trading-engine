@@ -10,46 +10,72 @@ from trading_engine.debug.dashboard import PositionDebugStore
 
 
 HTML_PAGE = """<!doctype html>
-<html lang=\"en\">
+<html lang="en">
   <head>
-    <meta charset=\"utf-8\" />
-    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Position Debug Dashboard</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; background: #0f172a; color: #e2e8f0; }
-      .layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
-      .panel { background: #111827; border: 1px solid #334155; border-radius: 12px; padding: 16px; }
-      h1 { margin-top: 0; }
+      :root {
+        --bg: #08111f;
+        --panel: #111d2e;
+        --muted: #9cadc5;
+        --primary: #38bdf8;
+        --success: #34d399;
+        --warn: #fbbf24;
+        --danger: #f87171;
+        --border: #22314a;
+        --node: #0f172a;
+      }
+      body { font-family: Arial, sans-serif; margin: 20px; background: var(--bg); color: #e2e8f0; }
+      .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+      .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+      h1, h2, h3 { margin-top: 0; }
       input, button { padding: 10px; border-radius: 8px; border: 1px solid #475569; background: #0b1220; color: white; }
       button { margin-left: 8px; cursor: pointer; }
-      .state-card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+      .state-card { background: #162338; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
       .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-      .chip { background: #0ea5e9; color: #082f49; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: bold; }
+      .chip { background: var(--primary); color: #082f49; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: bold; }
+      .badge { padding: 6px 8px; border-radius: 999px; background: #14532d; color: #dcfce7; font-size: 11px; font-weight: bold; }
+      .muted { color: var(--muted); }
       table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-      th, td { text-align: left; border-bottom: 1px solid #334155; padding: 8px 0; }
-      .badge { padding: 6px 8px; border-radius: 999px; background: #14532d; color: #dcfce7; font-size: 11px; }
-      .muted { color: #94a3b8; }
-      ul { padding-left: 18px; }
+      th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 8px 0; }
+      .graph { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 18px 0; }
+      .node {
+        min-width: 120px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
+        background: var(--node); text-align: center; font-weight: bold; color: #e2e8f0;
+      }
+      .node.active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(52,211,153,0.35); }
+      .node.secondary { border-color: var(--warn); }
+      .arrow { color: var(--primary); font-size: 22px; }
+      .info-grid { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 10px; }
+      .kpi { background: #0f172a; border-radius: 10px; padding: 10px; border: 1px solid var(--border); }
+      .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+      .kpi .value { font-size: 18px; font-weight: bold; margin-top: 6px; }
     </style>
   </head>
   <body>
-    <div class=\"layout\">
-      <aside class=\"panel\">
+    <div class="layout">
+      <aside class="panel">
         <h1>Position Debug</h1>
         <div>
-          <label class=\"muted\" for=\"symbol\">Symbol</label>
-          <div style=\"display:flex; margin-top: 8px;\">
-            <input id=\"symbol\" value=\"BTCUSDT\" />
-            <button id=\"refresh\">Refresh</button>
+          <label class="muted" for="symbol">Symbol</label>
+          <div style="display:flex; margin-top: 8px;">
+            <input id="symbol" value="BTCUSDT" />
+            <button id="refresh">Refresh</button>
           </div>
         </div>
-        <div style=\"margin-top: 20px;\">
-          <div class=\"muted\">Live lifecycle</div>
-          <div id=\"lifecycle\" class=\"badge\" style=\"display:inline-block; margin-top:8px;\">flat</div>
+        <div style="margin-top: 20px;">
+          <div class="muted">Current lifecycle</div>
+          <div id="lifecycle" class="badge" style="display:inline-block; margin-top:8px;">flat</div>
         </div>
       </aside>
-      <main class=\"panel\">
-        <div id=\"state\" class=\"state-card\"></div>
+      <main class="panel">
+        <div id="state" class="state-card"></div>
+
+        <h3>State machine view</h3>
+        <div id="graph" class="graph"></div>
+
         <h3>Transition history</h3>
         <table>
           <thead>
@@ -60,7 +86,7 @@ HTML_PAGE = """<!doctype html>
               <th>To</th>
             </tr>
           </thead>
-          <tbody id=\"history\"></tbody>
+          <tbody id="history"></tbody>
         </table>
       </main>
     </div>
@@ -71,6 +97,31 @@ HTML_PAGE = """<!doctype html>
       const stateHost = document.getElementById('state');
       const historyHost = document.getElementById('history');
       const lifecycleHost = document.getElementById('lifecycle');
+      const graphHost = document.getElementById('graph');
+
+      const stateSequence = [
+        'flat', 'open_long', 'opening_long', 'long', 'close_long', 'closing_long',
+        'open_short', 'opening_short', 'short', 'close_short', 'closing_short'
+      ];
+
+      function renderGraph(currentLifecycle, previousLifecycle, reason) {
+        const nodes = stateSequence.map((name) => {
+          const active = name === (currentLifecycle || 'flat');
+          const previousMatch = previousLifecycle && name === previousLifecycle;
+          return `
+            <div class="node ${active ? 'active' : ''} ${previousMatch ? 'secondary' : ''}">
+              ${name}
+            </div>
+          `;
+        }).join('<div class="arrow">→</div>');
+
+        graphHost.innerHTML = nodes + `
+          <div class="kpi" style="min-width: 180px; margin-left: 8px;">
+            <div class="label">last reason</div>
+            <div class="value" style="font-size: 14px;">${reason || 'n/a'}</div>
+          </div>
+        `;
+      }
 
       async function fetchJson(path) {
         const res = await fetch(path);
@@ -82,33 +133,44 @@ HTML_PAGE = """<!doctype html>
 
       function renderState(state) {
         if (!state) {
-          stateHost.innerHTML = '<div class=\"muted\">No state for this symbol yet.</div>';
+          stateHost.innerHTML = '<div class="muted">No state for this symbol yet.</div>';
           lifecycleHost.textContent = 'flat';
           return;
         }
 
-        lifecycleHost.textContent = state.current_lifecycle || state.lifecycle || 'flat';
+        const lifecycle = state.current_lifecycle || state.lifecycle || 'flat';
+        lifecycleHost.textContent = lifecycle;
         stateHost.innerHTML = `
-          <div class=\"chips\">
-            <span class=\"chip\">symbol: ${state.symbol}</span>
-            <span class=\"chip\">direction: ${state.direction || 'flat'}</span>
-            <span class=\"chip\">lifecycle: ${state.current_lifecycle || state.lifecycle || 'flat'}</span>
-            <span class=\"chip\">quantity: ${state.quantity ?? 0}</span>
+          <div class="chips">
+            <span class="chip">symbol: ${state.symbol}</span>
+            <span class="chip">direction: ${state.direction || 'flat'}</span>
+            <span class="chip">lifecycle: ${lifecycle}</span>
+            <span class="chip">quantity: ${state.quantity ?? 0}</span>
           </div>
-          <div style=\"margin-top: 12px;\">\
-            <div class=\"muted\">reason</div>\
-            <div><strong>${state.reason || 'n/a'}</strong></div>\
-          </div>
-          <div style=\"margin-top: 12px;\">\
-            <div class=\"muted\">updated_at</div>\
-            <div>${state.occurred_at || state.updated_at || 'n/a'}</div>\
+          <div class="info-grid" style="margin-top: 16px;">
+            <div class="kpi">
+              <div class="label">reason</div>
+              <div class="value" style="font-size: 14px;">${state.reason || 'n/a'}</div>
+            </div>
+            <div class="kpi">
+              <div class="label">updated_at</div>
+              <div class="value" style="font-size: 14px;">${state.occurred_at || state.updated_at || 'n/a'}</div>
+            </div>
+            <div class="kpi">
+              <div class="label">active order</div>
+              <div class="value" style="font-size: 14px;">${state.active_order_id || 'n/a'}</div>
+            </div>
+            <div class="kpi">
+              <div class="label">direction change</div>
+              <div class="value" style="font-size: 14px;">${state.previous_direction || 'n/a'} → ${state.direction || 'n/a'}</div>
+            </div>
           </div>
         `;
       }
 
       function renderHistory(entries) {
         if (!entries || entries.length === 0) {
-          historyHost.innerHTML = '<tr><td colspan=\"4\" class=\"muted\">No transitions recorded yet.</td></tr>';
+          historyHost.innerHTML = '<tr><td colspan="4" class="muted">No transitions recorded yet.</td></tr>';
           return;
         }
 
@@ -127,11 +189,19 @@ HTML_PAGE = """<!doctype html>
         try {
           const state = await fetchJson(`/api/state?symbol=${encodeURIComponent(symbol)}`);
           const history = await fetchJson(`/api/history?symbol=${encodeURIComponent(symbol)}`);
-          renderState(state.state || state);
-          renderHistory(history.history || history);
+          const currentState = state.state || state;
+          const historyEntries = history.history || history;
+          renderState(currentState);
+          renderGraph(
+            currentState && (currentState.current_lifecycle || currentState.lifecycle || 'flat'),
+            currentState && currentState.previous_lifecycle,
+            currentState && currentState.reason,
+          );
+          renderHistory(historyEntries);
         } catch (error) {
-          stateHost.innerHTML = `<div class=\"muted\">${error.message}</div>`;
-          historyHost.innerHTML = '<tr><td colspan=\"4\" class=\"muted\">Unable to load state.</td></tr>';
+          stateHost.innerHTML = `<div class="muted">${error.message}</div>`;
+          historyHost.innerHTML = '<tr><td colspan="4" class="muted">Unable to load state.</td></tr>';
+          graphHost.innerHTML = '<div class="muted">No graph available.</div>';
         }
       }
 
