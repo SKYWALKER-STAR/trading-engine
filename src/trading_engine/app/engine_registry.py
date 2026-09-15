@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from trading_engine.app.run_binance_user_data_stream import run as run_binance_user_data_stream
+from trading_engine.app.run_position_debug_dashboard import run as run_position_debug_dashboard
 from trading_engine.app.run_position_engine import run as run_position_engine
 from trading_engine.app.run_risk_engine import run as run_risk_engine
 from trading_engine.app.run_trade_engine import run as run_trade_engine
@@ -54,6 +55,11 @@ def get_engine_specs() -> dict[str, EngineSpec]:
             name="position-projector",
             description="Project Binance Redis raw snapshots into trading-engine view keys",
             runner=run_position_view_projector,
+        ),
+        EngineSpec(
+            name="position-debug-dashboard",
+            description="Serve the local browser dashboard for tracking position lifecycle transitions",
+            runner=run_position_debug_dashboard,
         ),
     )
     return {spec.name: spec for spec in specs}

@@ -17,16 +17,18 @@ usage() {
 Usage: ./start.sh <engine> [engine arguments]
 
 Engines:
-  strategy             Start the strategy engine
-  position             Start the position engine
-  risk                 Start the risk engine
-  trade                Start the trade engine
-  position-projector   Start the position view projector
-  all                  Start all engines
+  strategy               Start the strategy engine
+  position               Start the position engine
+  risk                   Start the risk engine
+  trade                  Start the trade engine
+  position-projector     Start the position view projector
+  position-debug-dashboard Start the browser dashboard for tracking position transitions
+  all                    Start all engines
 
 Examples:
   ./start.sh position
   ./start.sh strategy --once --symbol BTCUSDT
+  ./start.sh position-debug-dashboard
   ./start.sh all
 EOF
 }
@@ -38,6 +40,8 @@ start_engine() {
     local log_name="$engine"
     if [[ "$engine" == "position-projector" ]]; then
         log_name="projector"
+    elif [[ "$engine" == "position-debug-dashboard" ]]; then
+        log_name="position-debug-dashboard"
     fi
 
     nohup "$ENGINE_PYTHON" -m trading_engine "$engine" -- "$@" \
@@ -65,7 +69,7 @@ case "$engine" in
         fi
         start_engine strategy "$@"
         ;;
-    position|risk|trade)
+    position|risk|trade|position-debug-dashboard)
         start_engine "$engine" "$@"
         ;;
     position-projector|projector)
@@ -85,6 +89,7 @@ case "$engine" in
         start_engine risk
         start_engine trade
         start_engine position-projector --stream --interval-seconds 1
+        start_engine position-debug-dashboard
         ;;
     -h|--help|help)
         usage
