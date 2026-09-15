@@ -53,8 +53,16 @@ class TradeEngineMessageProcessor:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
         payload = cast(TradeActionPayload, event.payload)
+        LOGGER.info(
+            "trade action received: symbol=%s action=%s side=%s qty=%s correlation_id=%s",
+            payload.symbol, payload.action, payload.side, payload.quantity, event.correlation_id,
+        )
         request = _to_trade_order_request(payload, event, self._settings)
         if request == None:
+            LOGGER.warning(
+                "order request rejected: symbol=%s action=%s side=%s",
+                payload.symbol, payload.action, payload.side,
+            )
             self._publish_single_update(
                 symbol = payload.symbol,
                 status = TradeExecutionStatus.REJECTED,
@@ -70,11 +78,24 @@ class TradeEngineMessageProcessor:
             )
             return
         tracked_order = self._make_pending_order(request)
+        LOGGER.debug(
+            "pending order created: symbol=%s client_order_id=%s side=%s qty=%s type=%s",
+            tracked_order.symbol, tracked_order.client_order_id, tracked_order.side,
+            tracked_order.original_quantity, tracked_order.order_type,
+        )
         if self._order_repository is not None:
             self._order_repository.save(tracked_order)
+        LOGGER.info(
+            "submitting order: symbol=%s client_order_id=%s side=%s qty=%s type=%s",
+            request.symbol, request.client_order_id, request.side, request.quantity, request.order_type,
+        )
         try:
             result = self._gateway.submit_order(request)
         except Exception as exc:
+            LOGGER.error(
+                "gateway submit failed: symbol=%s client_order_id=%s error=%s",
+                request.symbol, request.client_order_id, type(exc).__name__,
+            )
             if self._order_repository is not None:
                 self._order_repository.save(
                     replace(
@@ -88,6 +109,11 @@ class TradeEngineMessageProcessor:
                     )
                 )
             raise
+        LOGGER.info(
+            "order submitted: symbol=%s client_order_id=%s order_id=%s status=%s filled_qty=%s",
+            request.symbol, result.client_order_id or request.client_order_id,
+            result.order_id, result.status.value, result.filled_quantity,
+        )
         if result.client_order_id is None:
             result = replace(result, client_order_id=request.client_order_id)
         if self._order_repository is not None:
@@ -161,6 +187,7 @@ class TradeEngineMessageProcessor:
         source_event: EngineEvent[Any],
         result: TradeExecutionResult,
     ) -> None:
+        LOGGER.debug("publishing order updates: symbol=%s result_status=%s", symbol, result.status.value)
         if result.status is TradeExecutionStatus.REJECTED:
             self._publish_single_update(
                 symbol=symbol,
@@ -193,6 +220,10 @@ class TradeEngineMessageProcessor:
         source_event: EngineEvent[Any],
         result: TradeExecutionResult,
     ) -> None:
+        LOGGER.debug(
+            "publishing order update event: symbol=%s status=%s client_order_id=%s order_id=%s",
+            symbol, status.value, result.client_order_id, result.order_id,
+        )
         updated_at = result.updated_at if result.updated_at.tzinfo is not None else datetime.now(UTC)
         payload = OrderUpdatePayload(
             symbol=symbol,
