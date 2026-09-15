@@ -115,7 +115,7 @@ def evaluate_once(
         
         LOGGER.info(
             "Strategy decision rejected",
-            extra={"reasons": list(decision.rejected_reasons), "symbol": context.factor_snapshot.symbol},
+            extra={"reasons": list(decision.rejected_reasons), "symbol": context.factor_snapshot.symbol, "direction": "rejected"},
         )
         payload = {
             "accepted": False,
@@ -125,7 +125,7 @@ def evaluate_once(
         sink.publish(decision.signal)
         LOGGER.info(
             "Strategy decision accepted",
-            extra={"symbol": decision.signal.symbol, "direction": decision.signal.direction.value},
+            extra={"symbol": decision.signal.symbol, "direction": decision.signal.direction.value, "reasons": list(decision.rejected_reasons) if decision.rejected_reasons else "accepted"},
         )
         payload = {
             "accepted": True,
