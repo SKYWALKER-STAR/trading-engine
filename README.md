@@ -120,6 +120,7 @@ python -m trading_engine <engine-name> -- <engine-specific-arguments>
 | `trade` | Submit trade actions to Binance Futures |
 | `binance-user-stream` | Continuously publish Binance order and fill updates to Kafka |
 | `position-projector` | Project Binance raw Redis snapshots into normalized views |
+| `position-debug-dashboard` | Watch the live position lifecycle transitions in a browser |
 
 ### Strategy Engine
 
@@ -216,6 +217,41 @@ python -m trading_engine position-projector -- --stream --interval-seconds 2
 
 See [the Redis position view specification](docs/position-redis-view-spec-v1.md) for its keys and
 schema.
+
+### Position Debug Dashboard
+
+The repository also includes a minimal, non-invasive debug dashboard for watching the position
+state machine while it is running. It does not replace the business logic; it simply records each
+state transition in Redis and exposes it through a simple local web page.
+
+```bash
+# from the repository root
+position-debug-dashboard
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8001/
+```
+
+The dashboard reads:
+
+- the current state for a symbol
+- the recent transition history for that symbol
+- the reason and timestamp for each transition (`signal_open_long`, `order_filled_open_long`, etc.)
+
+It uses the same Redis settings as the position repository and can be tuned with:
+
+```bash
+POSITION_REDIS_URL=redis://127.0.0.1:6379/0
+POSITION_REDIS_KEY_PREFIX=position
+POSITION_DEBUG_HOST=127.0.0.1
+POSITION_DEBUG_PORT=8001
+```
+
+This is designed for local debugging and operational tracing. For production, a more formal
+observability layer or a dedicated UI can be added later without changing the core lifecycle logic.
 
 ### Shell Launcher
 
@@ -599,6 +635,7 @@ python -m trading_engine <engine-name> -- <engine-specific-arguments>
 | `trade` | 向 Binance Futures 提交交易动作 |
 | `binance-user-stream` | 持续将 Binance 订单和成交更新发布到 Kafka |
 | `position-projector` | 将 Binance 原始 Redis 快照转换成标准视图 |
+| `position-debug-dashboard` | 在浏览器里看实时仓位生命周期状态转移 |
 
 ### 策略引擎
 
@@ -694,6 +731,42 @@ python -m trading_engine position-projector -- --stream --interval-seconds 2
 
 Redis 键名和数据结构参见
 [Redis 仓位视图规范](docs/position-redis-view-spec-v1.md)。
+
+### 仓位状态机调试看板
+
+仓库里还包含一个最小化的旁路调试看板，用于在运行过程中观察仓位状态机的转移过程。
+它不修改业务逻辑，只是在每次状态转换发生时记录一份调试快照到 Redis，并用一个轻量
+Web 页面展示出来。
+
+```bash
+# 在仓库根目录执行
+position-debug-dashboard
+```
+
+然后在浏览器访问：
+
+```text
+http://127.0.0.1:8001/
+```
+
+看板会展示：
+
+- 指定 symbol 的当前状态
+- 最近发生的状态转移历史
+- 每次转移对应的 `reason` 与时间戳
+- 例如 `signal_open_long`、`order_filled_open_long` 等
+
+它使用和仓位仓储相同的 Redis 配置，也可以通过以下环境变量调整：
+
+```bash
+POSITION_REDIS_URL=redis://127.0.0.1:6379/0
+POSITION_REDIS_KEY_PREFIX=position
+POSITION_DEBUG_HOST=127.0.0.1
+POSITION_DEBUG_PORT=8001
+```
+
+这个调试页适合本地开发、排查状态机问题和观察订单/成交事件在仓位状态中的影响。
+如果后续需要更强的运维可视化，再扩展成独立 UI 或监控面板即可，不需要重构核心状态机。
 
 ### Shell 启动脚本
 

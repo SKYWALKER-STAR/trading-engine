@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
+from trading_engine.debug.dashboard import PositionDebugStore
 from trading_engine.infra.bus.base import EventBus
 from trading_engine.position.models import (
     OrderUpdateStatus,
@@ -34,12 +35,14 @@ class PositionManager:
         state_topic: str = "position.state_changed",
         action_topic: str = "position.trade_action.created",
         failed_action_topic: str = "position.trade_action.failed",
+        debug_store: PositionDebugStore | None = None,
     ) -> None:
         self._repository = repository
         self._publisher = publisher
         self._state_topic = state_topic
         self._action_topic = action_topic
         self._failed_action_topic = failed_action_topic
+        self._debug_store = debug_store
 
     def handle_signal(self, signal: PositionSignalCommand) -> PositionDecision:
         current = self._load(signal.symbol, signal.timestamp)
@@ -533,6 +536,20 @@ class PositionManager:
                 reason=reason,
             )
             events.append(state_event)
+            if self._debug_store is not None:
+                self._debug_store.record_transition(
+                    symbol=current.symbol,
+                    previous_lifecycle=previous.lifecycle.value,
+                    current_lifecycle=current.lifecycle.value,
+                    reason=reason,
+                    occurred_at=occurred_at,
+                    metadata={
+                        "previous_direction": previous.direction.value,
+                        "current_direction": current.direction.value,
+                        "previous_quantity": previous.quantity,
+                        "current_quantity": current.quantity,
+                    },
+                )
             if self._publisher is not None:
                 self._publisher.publish(self._state_topic, state_event)
 

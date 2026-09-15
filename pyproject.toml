@@ -14,6 +14,7 @@ risk-engine = "trading_engine.app.run_risk_engine:run"
 trade-engine = "trading_engine.app.run_trade_engine:run"
 binance-user-data-stream = "trading_engine.app.run_binance_user_data_stream:run"
 position-view-projector = "trading_engine.app.run_position_view_projector:run"
+position-debug-dashboard = "trading_engine.debug.server:run"
 #strategy-engine-market-tick = "trading_engine.app.run_strategy_engine_factor:main"
 
 [project.optional-dependencies]
