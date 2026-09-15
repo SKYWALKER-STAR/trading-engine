@@ -30,6 +30,7 @@ def configure_logging(default_level: str = "INFO") -> None:
     level = getattr(logging, raw_level, logging.INFO)
     log_file = getenv("LOG_FILE", "./trading_engine.log")
     log_format = getenv("LOG_FORMAT", _DEFAULT_FORMAT)
+    log_to_console = getenv("LOG_TO_CONSOLE", "true").strip().lower() not in {"0", "false", "no"}
 
     root = logging.getLogger()
     root.setLevel(level)
@@ -38,10 +39,11 @@ def configure_logging(default_level: str = "INFO") -> None:
         root.removeHandler(handler)
         handler.close()
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(level)
-    stream_handler.setFormatter(logging.Formatter(log_format))
-    root.addHandler(stream_handler)
+    if log_to_console:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(level)
+        stream_handler.setFormatter(logging.Formatter(log_format))
+        root.addHandler(stream_handler)
 
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(level)
@@ -54,10 +56,16 @@ def configure_logging(default_level: str = "INFO") -> None:
         logger.propagate = False
         logger.handlers.clear()
 
-        handler = logging.StreamHandler()
-        handler.setLevel(level)
-        handler.setFormatter(logging.Formatter(formatter_template))
-        logger.addHandler(handler)
+        if log_to_console:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(level)
+            console_handler.setFormatter(logging.Formatter(formatter_template))
+            logger.addHandler(console_handler)
+
+        file_handler_for_logger = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler_for_logger.setLevel(level)
+        file_handler_for_logger.setFormatter(logging.Formatter(formatter_template))
+        logger.addHandler(file_handler_for_logger)
 
     _LOGGING_CONFIGURED = True
 
