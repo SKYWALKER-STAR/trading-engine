@@ -17,151 +17,384 @@ HTML_PAGE = """<!doctype html>
     <title>Position Debug Dashboard</title>
     <style>
       :root {
-        --bg: #08111f;
-        --panel: #111d2e;
-        --muted: #9cadc5;
-        --primary: #38bdf8;
-        --success: #34d399;
-        --warn: #fbbf24;
-        --danger: #f87171;
-        --border: #22314a;
-        --node: #0f172a;
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #e5e7eb;
+        --primary: #0f766e;
+        --primary-soft: #dff5f3;
+        --warn: #a16207;
+        --warn-soft: #fef3c7;
       }
       * { box-sizing: border-box; }
       body {
-        font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(180deg, #08111f 0%, #0d1728 100%);
-        color: #e2e8f0;
+        margin: 0;
+        padding: 20px;
+        background: linear-gradient(180deg, #f7f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        overflow-x: hidden;
       }
-      body.refreshing .panel, body.refreshing .state-card, body.refreshing .node {
-        animation: refreshPulse 0.6s ease;
+      .dashboard {
+        max-width: 1280px;
+        margin: 0 auto;
       }
-      .layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+      .layout {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 14px;
+      }
+      .layout > * { min-width: 0; }
       .panel {
-        background: rgba(17, 29, 46, 0.95); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
-        box-shadow: 0 16px 35px rgba(15, 23, 42, 0.25);
+        min-width: 0;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+      }
+      body.refreshing .panel,
+      body.refreshing .state-card,
+      body.refreshing .node {
+        animation: refreshPulse 380ms ease;
       }
       .page-header {
-        grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
       }
       .eyebrow {
-        font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--primary); margin-bottom: 6px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--primary);
+        margin-bottom: 4px;
       }
-      h1, h2, h3 { margin-top: 0; }
-      .header-actions { display: flex; align-items: center; gap: 12px; }
+      h1, h2, h3 {
+        margin: 0;
+        font-weight: 600;
+      }
+      h3 {
+        margin-top: 10px;
+        margin-bottom: 8px;
+      }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
       .status-pill {
-        display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
-        background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.35); color: #d1fae5;
-        font-size: 12px; font-weight: bold;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        border: 1px solid #8fd5cd;
+        background: var(--primary-soft);
+        color: #0f4f4a;
+        font-size: 12px;
+        font-weight: 600;
       }
       .status-dot {
-        width: 10px; height: 10px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
-        animation: liveDot 1.8s infinite;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--primary);
+        box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.5);
+        animation: liveDot 1.6s infinite;
       }
       body.paused .status-pill {
-        background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.35); color: #fef3c7;
+        border-color: #eab308;
+        background: var(--warn-soft);
+        color: #854d0e;
       }
       body.paused .status-dot {
-        background: var(--warn); box-shadow: none; animation: none;
+        background: var(--warn);
+        box-shadow: none;
+        animation: none;
       }
-      .last-updated { font-size: 12px; color: var(--muted); }
-      input, button {
-        padding: 10px 12px; border-radius: 8px; border: 1px solid #475569; background: #0b1220; color: white;
-        transition: all 0.2s ease;
+      .last-updated {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      input,
+      button {
+        height: 38px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        color: var(--text);
+        padding: 0 12px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      input {
+        flex: 1 1 140px;
+        min-width: 0;
+      }
+      input:focus,
+      button:focus {
+        outline: none;
+        border-color: #0ea5a4;
+        box-shadow: 0 0 0 3px rgba(14, 165, 164, 0.15);
       }
       button {
-        margin-left: 8px; cursor: pointer; min-width: 102px;
+        cursor: pointer;
+        font-weight: 600;
       }
-      button:hover { border-color: var(--primary); filter: brightness(1.08); }
-      .ghost {
-        background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.35); color: #bae6fd;
+      button.primary {
+        background: #0f766e;
+        border-color: #0f766e;
+        color: #ffffff;
       }
-      .state-card { background: #162338; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-      .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-      .chip { background: var(--primary); color: #082f49; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: bold; }
-      .badge { padding: 6px 8px; border-radius: 999px; background: #14532d; color: #dcfce7; font-size: 11px; font-weight: bold; }
+      button.ghost {
+        background: #ffffff;
+      }
       .muted { color: var(--muted); }
-      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-      th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 8px 0; }
-      .graph { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 18px 0; }
-      .node {
-        min-width: 120px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
-        background: var(--node); text-align: center; font-weight: bold; color: #e2e8f0;
+      .badge {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #0f4f4a;
+        background: var(--primary-soft);
+        border: 1px solid #8fd5cd;
       }
-      .node.active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(52,211,153,0.35); }
-      .node.secondary { border-color: var(--warn); }
-      .arrow { color: var(--primary); font-size: 22px; }
-      .info-grid { display: grid; grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 10px; }
-      .kpi { background: #0f172a; border-radius: 10px; padding: 10px; border: 1px solid var(--border); }
-      .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
-      .kpi .value { font-size: 18px; font-weight: bold; margin-top: 6px; }
+      .badge.lifecycle-flat {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        color: #3730a3;
+      }
+      .badge.lifecycle-long,
+      .badge.lifecycle-open_long,
+      .badge.lifecycle-opening_long,
+      .badge.lifecycle-close_long,
+      .badge.lifecycle-closing_long {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #065f46;
+      }
+      .badge.lifecycle-short,
+      .badge.lifecycle-open_short,
+      .badge.lifecycle-opening_short,
+      .badge.lifecycle-close_short,
+      .badge.lifecycle-closing_short {
+        background: #fff7ed;
+        border-color: #fed7aa;
+        color: #9a4d00;
+      }
+      .badge.lifecycle-opening_long,
+      .badge.lifecycle-closing_long,
+      .badge.lifecycle-opening_short,
+      .badge.lifecycle-closing_short {
+        background: #fffbeb;
+        border-color: #fcd34d;
+        color: #92400e;
+      }
+      .state-card {
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 12px;
+        min-width: 0;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        background: #e6fffb;
+        border: 1px solid #99f6e4;
+        color: #134e4a;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .kpi {
+        background: #ffffff;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .kpi .label {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .kpi .value {
+        margin-top: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .graph {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .node {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        color: #374151;
+        padding: 9px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .node.active {
+        border-color: #0f766e;
+        background: #ecfdf5;
+        color: #065f46;
+      }
+      .node.secondary {
+        border-color: #facc15;
+        background: #fffbeb;
+        color: #854d0e;
+      }
+      .graph-meta {
+        grid-column: 1 / -1;
+      }
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 540px;
+      }
+      th,
+      td {
+        padding: 8px 4px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        font-size: 13px;
+        vertical-align: top;
+      }
+      tbody tr.recent td {
+        background: rgba(15, 118, 110, 0.04);
+      }
+      .keys-table {
+        min-width: 460px;
+      }
+      .keys-table td:nth-child(2) {
+        word-break: break-all;
+      }
       @keyframes liveDot {
-        0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        0% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.45); }
+        70% { box-shadow: 0 0 0 9px rgba(15, 118, 110, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0); }
       }
       @keyframes refreshPulse {
-        0% { transform: translateY(0); box-shadow: 0 0 0 rgba(56,189,248,0); }
-        30% { transform: translateY(-2px); box-shadow: 0 0 20px rgba(56,189,248,0.35); }
-        100% { transform: translateY(0); box-shadow: 0 0 0 rgba(56,189,248,0); }
+        0% { transform: translateY(0); }
+        35% { transform: translateY(-1px); }
+        100% { transform: translateY(0); }
       }
-      @media (max-width: 900px) {
-        .layout { grid-template-columns: 1fr; }
-        .page-header { flex-direction: column; align-items: flex-start; }
+      @media (max-width: 980px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .page-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .header-actions {
+          width: 100%;
+          justify-content: space-between;
+          flex-wrap: wrap;
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          padding: 12px;
+        }
+        table {
+          min-width: 460px;
+        }
+        .info-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="layout">
-      <header class="panel page-header">
-        <div>
-          <div class="eyebrow">Market observability</div>
-          <h1>Position Debug</h1>
-        </div>
-        <div class="header-actions">
-          <div class="status-pill" id="status-pill">
-            <span class="status-dot"></span>
-            <span id="status-text">Live updating</span>
+    <div class="dashboard">
+      <div class="layout">
+        <header class="panel page-header">
+          <div>
+            <div class="eyebrow">Realtime monitor</div>
+            <h1>Position Debug</h1>
           </div>
-          <div class="last-updated" id="last-updated">Waiting for first update…</div>
-        </div>
-      </header>
-
-      <aside class="panel">
-        <div>
-          <label class="muted" for="symbol">Symbol</label>
-          <div style="display:flex; margin-top: 8px; align-items: center;">
-            <input id="symbol" value="BTCUSDT" />
-            <button id="refresh">Refresh</button>
-            <button id="toggle-live" class="ghost">Pause</button>
+          <div class="header-actions">
+            <div class="status-pill">
+              <span class="status-dot"></span>
+              <span id="status-text">Live updating</span>
+            </div>
+            <div class="last-updated" id="last-updated">Waiting for first update...</div>
           </div>
-        </div>
-        <div style="margin-top: 20px;">
-          <div class="muted">Current lifecycle</div>
-          <div id="lifecycle" class="badge" style="display:inline-block; margin-top:8px;">flat</div>
-        </div>
-      </aside>
-      <main class="panel">
-        <div id="state" class="state-card"></div>
+        </header>
 
-        <h3>Redis keys</h3>
-        <div id="keys" class="state-card"></div>
+        <aside class="panel">
+          <div>
+            <label class="muted" for="symbol">Symbol</label>
+            <div class="controls">
+              <input id="symbol" value="BTCUSDT" />
+              <button id="refresh" class="primary">Refresh</button>
+              <button id="toggle-live" class="ghost">Pause</button>
+            </div>
+          </div>
+          <div style="margin-top: 18px;">
+            <div class="muted">Current lifecycle</div>
+            <div id="lifecycle" class="badge">flat</div>
+          </div>
+        </aside>
 
-        <h3>State machine view</h3>
-        <div id="graph" class="graph"></div>
+        <main class="panel">
+          <div id="state" class="state-card"></div>
 
-        <h3>Transition history</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Reason</th>
-              <th>From</th>
-              <th>To</th>
-            </tr>
-          </thead>
-          <tbody id="history"></tbody>
-        </table>
-      </main>
+          <h3>Redis keys</h3>
+          <div id="keys" class="state-card"></div>
+
+          <h3>State machine view</h3>
+          <div id="graph" class="graph"></div>
+
+          <h3>Transition history</h3>
+          <div class="table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Reason</th>
+                  <th>From</th>
+                  <th>To</th>
+                </tr>
+              </thead>
+              <tbody id="history"></tbody>
+            </table>
+          </div>
+        </main>
+      </div>
     </div>
 
     <script>
@@ -193,11 +426,15 @@ HTML_PAGE = """<!doctype html>
         document.body.classList.remove('refreshing');
         void document.body.offsetWidth;
         document.body.classList.add('refreshing');
-        window.setTimeout(() => document.body.classList.remove('refreshing'), 500);
+        window.setTimeout(() => document.body.classList.remove('refreshing'), 380);
       }
 
       function updateLastUpdated() {
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const timestamp = new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
         lastUpdatedHost.textContent = `Last updated at ${timestamp}`;
       }
 
@@ -207,9 +444,17 @@ HTML_PAGE = """<!doctype html>
         }
         autoRefreshTimer = setInterval(() => {
           if (autoRefreshEnabled) {
-            load({ silent: true });
+            load();
           }
         }, 2000);
+      }
+
+      function lifecycleClassName(lifecycle) {
+        const normalized = String(lifecycle || 'flat').trim().toLowerCase();
+        if (!normalized) return 'lifecycle-flat';
+        if (normalized.includes('long')) return normalized.includes('opening') || normalized.includes('closing') ? 'lifecycle-opening_long' : 'lifecycle-long';
+        if (normalized.includes('short')) return normalized.includes('opening') || normalized.includes('closing') ? 'lifecycle-opening_short' : 'lifecycle-short';
+        return 'lifecycle-flat';
       }
 
       function renderGraph(currentLifecycle, previousLifecycle, reason) {
@@ -221,12 +466,12 @@ HTML_PAGE = """<!doctype html>
               ${name}
             </div>
           `;
-        }).join('<div class="arrow">→</div>');
+        }).join('');
 
         graphHost.innerHTML = nodes + `
-          <div class="kpi" style="min-width: 180px; margin-left: 8px;">
+          <div class="kpi graph-meta">
             <div class="label">last reason</div>
-            <div class="value" style="font-size: 14px;">${reason || 'n/a'}</div>
+            <div class="value">${reason || 'n/a'}</div>
           </div>
         `;
       }
@@ -243,11 +488,13 @@ HTML_PAGE = """<!doctype html>
         if (!state) {
           stateHost.innerHTML = '<div class="muted">No state for this symbol yet.</div>';
           lifecycleHost.textContent = 'flat';
+          lifecycleHost.className = 'badge lifecycle-flat';
           return;
         }
 
         const lifecycle = state.current_lifecycle || state.lifecycle || 'flat';
         lifecycleHost.textContent = lifecycle;
+        lifecycleHost.className = `badge ${lifecycleClassName(lifecycle)}`;
         stateHost.innerHTML = `
           <div class="chips">
             <span class="chip">symbol: ${state.symbol}</span>
@@ -255,22 +502,22 @@ HTML_PAGE = """<!doctype html>
             <span class="chip">lifecycle: ${lifecycle}</span>
             <span class="chip">quantity: ${state.quantity ?? 0}</span>
           </div>
-          <div class="info-grid" style="margin-top: 16px;">
+          <div class="info-grid">
             <div class="kpi">
               <div class="label">reason</div>
-              <div class="value" style="font-size: 14px;">${state.reason || 'n/a'}</div>
+              <div class="value">${state.reason || 'n/a'}</div>
             </div>
             <div class="kpi">
               <div class="label">updated_at</div>
-              <div class="value" style="font-size: 14px;">${state.occurred_at || state.updated_at || 'n/a'}</div>
+              <div class="value">${state.occurred_at || state.updated_at || 'n/a'}</div>
             </div>
             <div class="kpi">
               <div class="label">active order</div>
-              <div class="value" style="font-size: 14px;">${state.active_order_id || 'n/a'}</div>
+              <div class="value">${state.active_order_id || 'n/a'}</div>
             </div>
             <div class="kpi">
               <div class="label">direction change</div>
-              <div class="value" style="font-size: 14px;">${state.previous_direction || 'n/a'} → ${state.direction || 'n/a'}</div>
+              <div class="value">${state.previous_direction || 'n/a'} -> ${state.direction || 'n/a'}</div>
             </div>
           </div>
         `;
@@ -297,16 +544,18 @@ HTML_PAGE = """<!doctype html>
         }).join('');
 
         keysHost.innerHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>name</th>
-                <th>key</th>
-                <th>exists</th>
-              </tr>
-            </thead>
-            <tbody>${entries}</tbody>
-          </table>
+          <div class="table-wrap">
+            <table class="keys-table">
+              <thead>
+                <tr>
+                  <th>name</th>
+                  <th>key</th>
+                  <th>exists</th>
+                </tr>
+              </thead>
+              <tbody>${entries}</tbody>
+            </table>
+          </div>
         `;
       }
 
@@ -316,8 +565,8 @@ HTML_PAGE = """<!doctype html>
           return;
         }
 
-        historyHost.innerHTML = entries.map((entry) => `
-          <tr>
+        historyHost.innerHTML = entries.map((entry, index) => `
+          <tr class="${index === 0 ? 'recent' : ''}">
             <td>${entry.occurred_at}</td>
             <td>${entry.reason}</td>
             <td>${entry.previous_lifecycle}</td>
@@ -326,14 +575,16 @@ HTML_PAGE = """<!doctype html>
         `).join('');
       }
 
-      async function load({ silent = false } = {}) {
+      async function load() {
         const symbol = symbolInput.value.trim() || 'BTCUSDT';
         try {
           const state = await fetchJson(`/api/state?symbol=${encodeURIComponent(symbol)}`);
           const history = await fetchJson(`/api/history?symbol=${encodeURIComponent(symbol)}`);
           const keys = await fetchJson(`/api/keys?symbol=${encodeURIComponent(symbol)}`);
+
           const currentState = state.state || state;
           const historyEntries = history.history || history;
+
           renderState(currentState);
           renderKeys(keys, state.state_source_key || null);
           renderGraph(
@@ -343,11 +594,9 @@ HTML_PAGE = """<!doctype html>
           );
           renderHistory(historyEntries);
 
-          if (!silent) {
-            flashRefresh();
-          }
+          flashRefresh();
           updateLastUpdated();
-          setLiveStatus('Live updating', true);
+          setLiveStatus(autoRefreshEnabled ? 'Live updating' : 'Paused', autoRefreshEnabled);
         } catch (error) {
           stateHost.innerHTML = `<div class="muted">${error.message}</div>`;
           historyHost.innerHTML = '<tr><td colspan="4" class="muted">Unable to load state.</td></tr>';
@@ -363,20 +612,20 @@ HTML_PAGE = """<!doctype html>
         setLiveStatus(autoRefreshEnabled ? 'Live updating' : 'Paused', autoRefreshEnabled);
 
         if (autoRefreshEnabled) {
-          load({ silent: true });
+          load();
         }
       }
 
-      refreshButton.addEventListener('click', () => load({ silent: false }));
+      refreshButton.addEventListener('click', load);
       toggleLiveButton.addEventListener('click', toggleLiveUpdates);
       symbolInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
-          load({ silent: false });
+          load();
         }
       });
 
       setLiveStatus('Live updating', true);
-      load({ silent: true });
+      load();
       startAutoRefresh();
     </script>
   </body>
