@@ -78,9 +78,9 @@ class BinanceFuturesWsGateway:
         if new_client_order_id is not None:
             params["newClientOrderId"] = str(new_client_order_id)
 
-        reduce_only = request.metadata.get("reduceOnly")
-        if reduce_only is not None:
-            params["reduceOnly"] = str(reduce_only).lower()
+        #reduce_only = request.metadata.get("reduceOnly")
+        #if reduce_only is not None:
+        #    params["reduceOnly"] = str(reduce_only).lower()
 
         if order_type == "LIMIT":
             price = request.metadata.get("price")
