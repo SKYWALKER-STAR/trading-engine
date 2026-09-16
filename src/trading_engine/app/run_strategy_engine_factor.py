@@ -113,7 +113,7 @@ def evaluate_once(
 
     if decision.signal is None:
         
-        LOGGER.info(
+        LOGGER.debug(
             "Strategy decision rejected",
             extra={"reasons": list(decision.rejected_reasons), "symbol": context.factor_snapshot.symbol, "direction": "rejected"},
         )
@@ -123,7 +123,7 @@ def evaluate_once(
         }
     else:
         sink.publish(decision.signal)
-        LOGGER.info(
+        LOGGER.debug(
             "Strategy decision accepted",
             extra={"symbol": decision.signal.symbol, "direction": decision.signal.direction.value, "reasons": list(decision.rejected_reasons) if decision.rejected_reasons else "accepted"},
         )
