@@ -117,7 +117,8 @@ class BinanceFuturesWsGateway:
                     "error_message": error_msg,
                 },
             )
-
+        LOGGER.info("order response received: %s", response)
+        
         result = response.get("result", {})
         exchange_status = str(result.get("status", "NEW"))
         status = _map_status(exchange_status)
