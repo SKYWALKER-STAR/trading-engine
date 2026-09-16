@@ -111,8 +111,8 @@ class TradeEngineMessageProcessor:
             raise
         if result.status == TradeExecutionStatus.REJECTED:
             LOGGER.warning(
-                "order rejected: symbol=%s client_order_id=%s order_id=%s reason=%s",
-                request.symbol, result.client_order_id or request.client_order_id, result.order_id, result.metadata.get("reason", ""),
+                "order rejected: symbol=%s client_order_id=%s order_id=%s error_message=%s error_code=%s",
+                request.symbol, result.client_order_id or request.client_order_id, result.order_id, result.metadata.get("error_message", ""), result.metadata.get("error_code", ""),
             )
         else:
             LOGGER.info(
