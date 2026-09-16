@@ -53,7 +53,7 @@ class TradeEngineMessageProcessor:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
         payload = cast(TradeActionPayload, event.payload)
-        LOGGER.info(
+        LOGGER.debug(
             "trade action received: symbol=%s action=%s side=%s qty=%s correlation_id=%s meta=%s",
             payload.symbol, payload.action, payload.side, payload.quantity, event.correlation_id, payload.metadata,
         )
