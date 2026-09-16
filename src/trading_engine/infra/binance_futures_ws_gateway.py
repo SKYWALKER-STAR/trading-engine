@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
-
+from trading_engine.common.logger import get_logger
 from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
 
+LOGGER = get_logger(__name__)
 
 class BinanceWsTransport(Protocol):
     """Transport abstraction to allow testing without real websocket connections."""
@@ -97,6 +98,7 @@ class BinanceFuturesWsGateway:
             "params": params,
         }
 
+        LOGGER.info("sending order request: %s", message)
         response = transport.request(self.endpoint, message, self.timeout_seconds)
         error = response.get("error")
         if isinstance(error, dict):
