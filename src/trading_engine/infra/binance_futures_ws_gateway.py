@@ -68,7 +68,8 @@ class BinanceFuturesWsGateway:
 
         position_side = request.metadata.get("positionSide", request.metadata.get("position_side"))
         if position_side is not None:
-            params["positionSide"] = str(position_side).upper()
+            #params["positionSide"] = str(position_side).upper()
+            params["positionSide"] = "BOTH"
 
         new_order_resp_type = request.metadata.get("newOrderRespType")
         if new_order_resp_type is not None:
@@ -118,7 +119,7 @@ class BinanceFuturesWsGateway:
                 },
             )
         LOGGER.info("order response received: %s", response)
-        
+
         result = response.get("result", {})
         exchange_status = str(result.get("status", "NEW"))
         status = _map_status(exchange_status)
