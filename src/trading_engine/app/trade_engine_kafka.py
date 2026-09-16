@@ -109,11 +109,18 @@ class TradeEngineMessageProcessor:
                     )
                 )
             raise
-        LOGGER.info(
-            "order submitted: symbol=%s client_order_id=%s order_id=%s status=%s filled_qty=%s",
-            request.symbol, result.client_order_id or request.client_order_id,
-            result.order_id, result.status.value, result.filled_quantity,
-        )
+        if result.status == TradeExecutionStatus.REJECTED:
+            LOGGER.warning(
+                "order rejected: symbol=%s client_order_id=%s order_id=%s reason=%s",
+                request.symbol, result.client_order_id or request.client_order_id, result.order_id, result.metadata.get("reason", ""),
+            )
+        else:
+            LOGGER.info(
+                "order submitted: symbol=%s client_order_id=%s order_id=%s status=%s filled_qty=%s",
+                request.symbol, result.client_order_id or request.client_order_id,
+                result.order_id, result.status.value, result.filled_quantity,
+            )
+
         if result.client_order_id is None:
             result = replace(result, client_order_id=request.client_order_id)
         if self._order_repository is not None:
