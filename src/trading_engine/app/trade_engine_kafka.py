@@ -54,8 +54,8 @@ class TradeEngineMessageProcessor:
 
         payload = cast(TradeActionPayload, event.payload)
         LOGGER.info(
-            "trade action received: symbol=%s action=%s side=%s qty=%s correlation_id=%s",
-            payload.symbol, payload.action, payload.side, payload.quantity, event.correlation_id,
+            "trade action received: symbol=%s action=%s side=%s qty=%s correlation_id=%s meta=%s",
+            payload.symbol, payload.action, payload.side, payload.quantity, event.correlation_id, event.metadata,
         )
         request = _to_trade_order_request(payload, event, self._settings)
         if request == None:
