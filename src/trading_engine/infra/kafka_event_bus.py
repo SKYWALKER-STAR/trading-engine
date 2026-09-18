@@ -115,6 +115,6 @@ class KafkaEventConsumer:
             enable_auto_commit=True,
             value_deserializer=lambda value: value,
             key_deserializer=lambda value: None if value is None else value.decode("utf-8"),
-            auto_offset_reset="earliest",
+            auto_offset_reset="latest",
         )
         return self._consumer
