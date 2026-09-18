@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -41,21 +42,40 @@ class TradeEngineMessageProcessor:
         *,
         order_repository: OrderRepository | None = None,
         producer_name: str = "trade-engine",
+        event_dedup_ttl_seconds: int = 900,
     ) -> None:
         self._publisher = publisher
         self._settings = settings
         self._gateway = gateway
         self._order_repository = order_repository
         self._producer_name = producer_name
+        self._event_dedup_ttl_seconds = max(1, int(event_dedup_ttl_seconds))
+        self._seen_event_ids: dict[str, float] = {}
 
     def handle_trade_action(self, event: EngineEvent[Any]) -> None:
         if event.event_type is not EngineEventType.TRADE_ACTION_REQUESTED:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
+        if self._mark_event_duplicate(event.event_id):
+            LOGGER.warning(
+                "duplicate trade event ignored: event_id=%s correlation_id=%s causation_id=%s",
+                event.event_id,
+                event.correlation_id,
+                event.causation_id,
+            )
+            return
+
         payload = cast(TradeActionPayload, event.payload)
         LOGGER.debug(
-            "trade action received: symbol=%s action=%s side=%s qty=%s correlation_id=%s meta=%s",
-            payload.symbol, payload.action, payload.side, payload.quantity, event.correlation_id, payload.metadata,
+            "trade action received: event_id=%s symbol=%s action=%s side=%s qty=%s correlation_id=%s causation_id=%s meta=%s",
+            event.event_id,
+            payload.symbol,
+            payload.action,
+            payload.side,
+            payload.quantity,
+            event.correlation_id,
+            event.causation_id,
+            payload.metadata,
         )
         request = _to_trade_order_request(payload, event, self._settings)
         if request == None:
@@ -86,7 +106,8 @@ class TradeEngineMessageProcessor:
             )
             if existing_order is not None:
                 LOGGER.warning(
-                    "duplicate trade action ignored: symbol=%s client_order_id=%s status=%s",
+                    "duplicate trade action ignored: event_id=%s symbol=%s client_order_id=%s status=%s",
+                    event.event_id,
                     request.symbol,
                     request.client_order_id,
                     existing_order.status.value,
@@ -264,6 +285,22 @@ class TradeEngineMessageProcessor:
         )
         self._publisher.publish(self._settings.order_update_topic, order_update_event, key=symbol)
 
+    def _mark_event_duplicate(self, event_id: str) -> bool:
+        now = time.monotonic()
+        if len(self._seen_event_ids) > 10_000:
+            self._seen_event_ids = {
+                key: expires_at
+                for key, expires_at in self._seen_event_ids.items()
+                if expires_at > now
+            }
+
+        expires_at = self._seen_event_ids.get(event_id)
+        if expires_at is not None and expires_at > now:
+            return True
+
+        self._seen_event_ids[event_id] = now + float(self._event_dedup_ttl_seconds)
+        return False
+
 
 def build_trade_engine_consumer(
     settings: TradeEngineSettings,
@@ -324,7 +361,15 @@ def _to_trade_order_request(
     client_order_id = (
         str(client_order_id_raw)
         if client_order_id_raw is not None
-        else _client_order_id_for_event(event.event_id)
+        else _client_order_id_for_trade_action(
+            symbol=payload.symbol,
+            action=payload.action,
+            side=payload.side,
+            requested_at=payload.requested_at,
+            quantity=quantity,
+            state=payload.state,
+            metadata=metadata,
+        )
     )
     metadata["newClientOrderId"] = client_order_id
 
@@ -358,7 +403,35 @@ def _to_trade_order_request(
     )
 
 
-def _client_order_id_for_event(event_id: str) -> str:
-    """Return a Binance-safe, deterministic ID for one logical order request."""
-    digest = hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:32]
+def _client_order_id_for_trade_action(
+    *,
+    symbol: str,
+    action: str,
+    side: str,
+    requested_at: datetime,
+    quantity: float,
+    state: str | None,
+    metadata: dict[str, str | float],
+) -> str:
+    """Return a Binance-safe deterministic ID derived from business identity."""
+    metadata_tokens: list[str] = []
+    for key in sorted(metadata.keys()):
+        if key == "newClientOrderId":
+            continue
+        value = metadata[key]
+        token = f"{key}={value:.12g}" if isinstance(value, float) else f"{key}={value}"
+        metadata_tokens.append(token)
+
+    seed = "|".join(
+        [
+            symbol.upper(),
+            action.lower(),
+            side.upper(),
+            requested_at.isoformat(),
+            f"{quantity:.12g}",
+            "" if state is None else state.lower(),
+            "&".join(metadata_tokens),
+        ]
+    )
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
     return f"te-{digest}"

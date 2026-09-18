@@ -190,6 +190,82 @@ def test_trade_engine_skips_duplicate_trade_action_submit_by_client_order_id() -
     assert len(publisher.published) == 1
 
 
+def test_trade_engine_skips_same_business_action_with_different_event_ids() -> None:
+    now = datetime(2026, 8, 16, 9, 0, 10, tzinfo=UTC)
+    publisher = _FakePublisher()
+    order_repository = _FakeOrderRepository()
+    settings = TradeEngineSettings()
+    gateway = _FakeGateway(
+        TradeExecutionResult(
+            symbol="BTCUSDT",
+            status=TradeExecutionStatus.NEW,
+            updated_at=now,
+            order_id="ord-business-1",
+        )
+    )
+    processor = TradeEngineMessageProcessor(
+        publisher=publisher,
+        settings=settings,
+        gateway=gateway,
+        order_repository=order_repository,
+    )
+
+    payload = TradeActionPayload(
+        symbol="BTCUSDT",
+        action="open_long",
+        side="BUY",
+        requested_at=now,
+        quantity=0.2,
+        state="open_long",
+        metadata={"source": "position-engine"},
+    )
+    event_1 = build_event(
+        EngineEventType.TRADE_ACTION_REQUESTED,
+        payload,
+        producer="position-engine",
+        occurred_at=now,
+        correlation_id="corr-business",
+    )
+    event_2 = build_event(
+        EngineEventType.TRADE_ACTION_REQUESTED,
+        payload,
+        producer="position-engine",
+        occurred_at=now,
+        correlation_id="corr-business",
+    )
+
+    processor.handle_trade_action(event_1)
+    processor.handle_trade_action(event_2)
+
+    assert len(gateway.requests) == 1
+    assert len(order_repository.orders) == 1
+
+
+def test_trade_engine_skips_duplicate_event_id_without_repository() -> None:
+    now = datetime(2026, 8, 16, 9, 0, 11, tzinfo=UTC)
+    publisher = _FakePublisher()
+    settings = TradeEngineSettings()
+    gateway = _FakeGateway(
+        TradeExecutionResult(
+            symbol="BTCUSDT",
+            status=TradeExecutionStatus.NEW,
+            updated_at=now,
+            order_id="ord-event-dup-1",
+        )
+    )
+    processor = TradeEngineMessageProcessor(
+        publisher=publisher,
+        settings=settings,
+        gateway=gateway,
+    )
+    event = _trade_action_event()
+
+    processor.handle_trade_action(event)
+    processor.handle_trade_action(event)
+
+    assert len(gateway.requests) == 1
+
+
 def test_trade_engine_persists_unknown_when_submission_raises() -> None:
     order_repository = _FakeOrderRepository()
     processor = TradeEngineMessageProcessor(
