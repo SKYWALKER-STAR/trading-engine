@@ -77,6 +77,22 @@ class TradeEngineMessageProcessor:
                 ),
             )
             return
+
+        if self._order_repository is not None and request.client_order_id is not None:
+            existing_order = self._order_repository.get_by_client_order_id(
+                exchange=self._settings.exchange,
+                account_id=self._settings.order_account_id,
+                client_order_id=request.client_order_id,
+            )
+            if existing_order is not None:
+                LOGGER.warning(
+                    "duplicate trade action ignored: symbol=%s client_order_id=%s status=%s",
+                    request.symbol,
+                    request.client_order_id,
+                    existing_order.status.value,
+                )
+                return
+
         tracked_order = self._make_pending_order(request)
         LOGGER.debug(
             "pending order created: symbol=%s client_order_id=%s side=%s qty=%s type=%s",

@@ -56,6 +56,15 @@ class _FakeOrderRepository:
         self.orders[order.client_order_id] = order
         self.saved.append(order)
 
+    def get_by_client_order_id(
+        self,
+        *,
+        exchange: str,
+        account_id: str,
+        client_order_id: str,
+    ) -> TrackedOrder | None:
+        return self.orders.get(client_order_id)
+
     def bind_order_id(
         self,
         *,
@@ -152,6 +161,33 @@ def test_trade_engine_generates_and_preserves_deterministic_client_order_id() ->
     saved_order = order_repository.orders[request.client_order_id]
     assert saved_order.order_id == "ord-client-1"
     assert saved_order.client_order_id == request.client_order_id
+
+
+def test_trade_engine_skips_duplicate_trade_action_submit_by_client_order_id() -> None:
+    now = datetime(2026, 8, 16, 9, 0, 1, tzinfo=UTC)
+    publisher = _FakePublisher()
+    order_repository = _FakeOrderRepository()
+    gateway = _FakeGateway(
+        TradeExecutionResult(
+            symbol="BTCUSDT",
+            status=TradeExecutionStatus.NEW,
+            updated_at=now,
+            order_id="ord-dup-1",
+        )
+    )
+    processor = TradeEngineMessageProcessor(
+        publisher=publisher,
+        settings=TradeEngineSettings(),
+        gateway=gateway,
+        order_repository=order_repository,
+    )
+    event = _trade_action_event()
+
+    processor.handle_trade_action(event)
+    processor.handle_trade_action(event)
+
+    assert len(gateway.requests) == 1
+    assert len(publisher.published) == 1
 
 
 def test_trade_engine_persists_unknown_when_submission_raises() -> None:
