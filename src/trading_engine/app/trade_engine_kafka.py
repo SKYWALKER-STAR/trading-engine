@@ -85,11 +85,7 @@ class TradeEngineMessageProcessor:
         )
         if self._order_repository is not None:
             self._order_repository.save(tracked_order)
-        LOGGER.info(
-            "submitting order: symbol=%s client_order_id=%s side=%s qty=%s type=%s",
-            request.symbol, request.client_order_id, request.side, request.quantity, request.order_type,
-        )
-        try:
+        try:    
             result = self._gateway.submit_order(request)
         except Exception as exc:
             LOGGER.error(
