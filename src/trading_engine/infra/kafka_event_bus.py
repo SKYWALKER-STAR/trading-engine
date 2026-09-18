@@ -91,8 +91,7 @@ class KafkaEventConsumer:
         for message in consumer:
             event = decode_event(message.value)
             LOGGER.debug(
-                "Dispatching Kafka event",
-                extra={"topic": message.topic, "offset": message.offset, "event_type": event.event_type.value},
+                f"Dispatching Kafka event: topic={message.topic}，offset={message.offset}，event_type={event.event_type.value}",
             )
             for handler in self._handlers[message.topic]:
                 handler(event)
