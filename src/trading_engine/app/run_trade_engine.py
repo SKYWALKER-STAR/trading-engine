@@ -18,6 +18,7 @@ def run(argv: list[str] | None = None) -> None:
 
     configure_logging()
     settings = TradeEngineSettings.from_env()
+    _validate_settings(settings)
     gateway = _build_gateway(settings)
     consumer = build_trade_engine_consumer(settings=settings, gateway=gateway)
 
@@ -34,6 +35,13 @@ def run(argv: list[str] | None = None) -> None:
         },
     )
     consumer.consume_forever((settings.trade_action_topic,))
+
+
+def _validate_settings(settings: TradeEngineSettings) -> None:
+    if settings.trade_action_topic == settings.order_update_topic:
+        raise ValueError(
+            "Invalid trade topic configuration: TRADE_ACTION_TOPIC and TRADE_ORDER_UPDATE_TOPIC must be different"
+        )
 
 
 def _build_gateway(settings: TradeEngineSettings) -> TradeExecutionGateway:
