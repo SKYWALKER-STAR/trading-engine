@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from trading_engine.common.logger import get_logger
 from trading_engine.contracts.messages import PositionSignalCommand, SignalDirection
 from trading_engine.debug.dashboard import PositionDebugStore
 from trading_engine.infra.bus.base import EventBus
@@ -24,6 +25,7 @@ from trading_engine.position.repository import PositionRepository
 
 ACTIVE_ORDER_CUMULATIVE_FILLED_KEY = "active_order_cumulative_filled"
 
+LOGGER = get_logger(__name__)
 
 class PositionManager:
     """Event-driven state machine that manages positions and emits trade actions."""
@@ -566,11 +568,13 @@ class PositionManager:
             )
             events.append(action_event)
             if self._publisher is not None:
+                LOGGER.info("Publishing trade action created event: %s", action_event)
                 self._publisher.publish(self._action_topic, action_event)
 
         if failed_action is not None:
             events.append(failed_action)
             if self._publisher is not None:
+                LOGGER.info("Publishing trade action failed event: %s", failed_action)
                 self._publisher.publish(self._failed_action_topic, failed_action)
 
         return PositionDecision(state=current, trade_action=trade_action, events=tuple(events))
