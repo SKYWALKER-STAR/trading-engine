@@ -124,6 +124,53 @@ def test_binance_gateway_uses_send_time_timestamp_not_request_time() -> None:
     assert sent_message["params"]["timestamp"] != int(old_request.requested_at.timestamp() * 1000)
 
 
+def test_binance_gateway_floors_quantity_to_symbol_step_size() -> None:
+    transport = _FakeTransport(
+        {
+            "id": "1",
+            "status": 200,
+            "result": {
+                "orderId": 456,
+                "status": "NEW",
+                "executedQty": "0",
+            },
+        }
+    )
+    gateway = BinanceFuturesWsGateway(
+        endpoint="wss://example.test/ws",
+        api_key="key",
+        api_secret="secret",
+        transport=transport,
+    )
+
+    gateway._symbol_step_size_cached.cache_clear()
+    original_step_lookup = gateway._symbol_step_size_cached
+
+    def _fake_step_lookup(_rest_api_url: str, _symbol: str) -> float | None:
+        return 0.001
+
+    BinanceFuturesWsGateway._symbol_step_size_cached = staticmethod(_fake_step_lookup)  # type: ignore[method-assign]
+    try:
+        request = _build_request()
+        request = TradeOrderRequest(
+            symbol=request.symbol,
+            side=request.side,
+            quantity=0.123456,
+            order_type=request.order_type,
+            requested_at=request.requested_at,
+            correlation_id=request.correlation_id,
+            causation_id=request.causation_id,
+            client_order_id=request.client_order_id,
+            metadata=request.metadata,
+        )
+        gateway.submit_order(request)
+    finally:
+        BinanceFuturesWsGateway._symbol_step_size_cached = original_step_lookup  # type: ignore[method-assign]
+
+    _, sent_message, _ = transport.calls[0]
+    assert sent_message["params"]["quantity"] == "0.123"
+
+
 def test_binance_gateway_includes_optional_parameters_for_limit_orders() -> None:
     transport = _FakeTransport(
         {

@@ -4,9 +4,13 @@ import asyncio
 import hashlib
 import hmac
 import json
+from decimal import ROUND_DOWN, Decimal
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any, Protocol
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 from uuid import uuid4
 from trading_engine.common.logger import get_logger
 from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
@@ -56,6 +60,7 @@ class BinanceFuturesWsGateway:
     endpoint: str
     api_key: str
     api_secret: str
+    rest_api_url: str = "https://fapi.binance.com"
     order_type: str = "MARKET"
     recv_window: int = 5000
     timeout_seconds: float = 10.0
@@ -65,12 +70,13 @@ class BinanceFuturesWsGateway:
         transport = self.transport or BinanceWsApiTransport()
         now_ms = int(datetime.now(UTC).timestamp() * 1000)
         order_type = request.order_type.strip().upper() if request.order_type else self.order_type
+        normalized_quantity = self._normalize_quantity(request.symbol, request.quantity)
         params: dict[str, Any] = {
             "apiKey": self.api_key,
             "symbol": request.symbol.upper(),
             "side": request.side.upper(),
             "type": order_type,
-            "quantity": self._format_quantity(request.quantity),
+            "quantity": self._format_quantity(normalized_quantity),
             "recvWindow": self.recv_window,
             "timestamp": now_ms,
         }
@@ -97,7 +103,8 @@ class BinanceFuturesWsGateway:
             time_in_force = request.metadata.get("timeInForce", request.metadata.get("time_in_force"))
             if price is None or time_in_force is None:
                 raise ValueError("LIMIT order requires metadata.price and metadata.timeInForce")
-            params["price"] = self._format_decimal(float(price))
+            normalized_price = self._normalize_price(request.symbol, float(price))
+            params["price"] = self._format_decimal(normalized_price)
             params["timeInForce"] = str(time_in_force).upper()
 
         params["signature"] = self._sign(params)
@@ -166,6 +173,107 @@ class BinanceFuturesWsGateway:
     @staticmethod
     def _format_quantity(quantity: float) -> str:
         return BinanceFuturesWsGateway._format_decimal(quantity)
+
+    def _normalize_quantity(self, symbol: str, quantity: float) -> float:
+        step_size = self._symbol_step_size(symbol.upper())
+        if step_size is None or step_size <= 0:
+            return quantity
+        normalized = self._floor_to_step(quantity, step_size)
+        if normalized <= 0:
+            return quantity
+        return normalized
+
+    def _normalize_price(self, symbol: str, price: float) -> float:
+        tick_size = self._symbol_tick_size(symbol.upper())
+        if tick_size is None or tick_size <= 0:
+            return price
+        normalized = self._floor_to_step(price, tick_size)
+        if normalized <= 0:
+            return price
+        return normalized
+
+    @staticmethod
+    @lru_cache(maxsize=256)
+    def _symbol_step_size_cached(rest_api_url: str, symbol: str) -> float | None:
+        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo?symbol={symbol}"
+        request = Request(endpoint, method="GET")
+        try:
+            with urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (URLError, TimeoutError, ValueError):
+            return None
+
+        symbols = payload.get("symbols") if isinstance(payload, dict) else None
+        if not isinstance(symbols, list) or not symbols:
+            return None
+        first = symbols[0]
+        if not isinstance(first, dict):
+            return None
+        filters = first.get("filters")
+        if not isinstance(filters, list):
+            return None
+
+        for item in filters:
+            if not isinstance(item, dict):
+                continue
+            if item.get("filterType") != "LOT_SIZE":
+                continue
+            raw_step = item.get("stepSize")
+            try:
+                step_size = float(raw_step)
+            except (TypeError, ValueError):
+                return None
+            return step_size if step_size > 0 else None
+        return None
+
+    def _symbol_step_size(self, symbol: str) -> float | None:
+        return self._symbol_step_size_cached(self.rest_api_url, symbol)
+
+    @staticmethod
+    @lru_cache(maxsize=256)
+    def _symbol_tick_size_cached(rest_api_url: str, symbol: str) -> float | None:
+        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo?symbol={symbol}"
+        request = Request(endpoint, method="GET")
+        try:
+            with urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (URLError, TimeoutError, ValueError):
+            return None
+
+        symbols = payload.get("symbols") if isinstance(payload, dict) else None
+        if not isinstance(symbols, list) or not symbols:
+            return None
+        first = symbols[0]
+        if not isinstance(first, dict):
+            return None
+        filters = first.get("filters")
+        if not isinstance(filters, list):
+            return None
+
+        for item in filters:
+            if not isinstance(item, dict):
+                continue
+            if item.get("filterType") != "PRICE_FILTER":
+                continue
+            raw_tick = item.get("tickSize")
+            try:
+                tick_size = float(raw_tick)
+            except (TypeError, ValueError):
+                return None
+            return tick_size if tick_size > 0 else None
+        return None
+
+    def _symbol_tick_size(self, symbol: str) -> float | None:
+        return self._symbol_tick_size_cached(self.rest_api_url, symbol)
+
+    @staticmethod
+    def _floor_to_step(value: float, step: float) -> float:
+        value_decimal = Decimal(str(value))
+        step_decimal = Decimal(str(step))
+        if step_decimal <= 0:
+            return value
+        steps = (value_decimal / step_decimal).to_integral_value(rounding=ROUND_DOWN)
+        return float(steps * step_decimal)
 
     @staticmethod
     def _format_decimal(value: float) -> str:
