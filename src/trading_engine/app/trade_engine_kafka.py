@@ -141,7 +141,7 @@ class TradeEngineMessageProcessor:
                         },
                     )
                 )
-            raise
+            return
         if result.status == TradeExecutionStatus.REJECTED:
             LOGGER.warning(
                 "order rejected: symbol=%s client_order_id=%s order_id=%s error_message=%s error_code=%s",

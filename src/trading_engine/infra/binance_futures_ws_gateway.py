@@ -32,12 +32,21 @@ class BinanceWsApiTransport:
         except ImportError as exc:
             raise RuntimeError("websockets is not installed. Install with: pip install websockets") from exc
 
-        async with websockets.connect(endpoint, open_timeout=timeout_seconds, close_timeout=timeout_seconds) as ws:
-            await ws.send(json.dumps(message, ensure_ascii=True))
-            raw_response = await asyncio.wait_for(ws.recv(), timeout=timeout_seconds)
-            if isinstance(raw_response, bytes):
-                raw_response = raw_response.decode("utf-8")
-            return json.loads(raw_response)
+        last_exc: Exception = RuntimeError("unreachable")
+        for attempt in range(3):
+            try:
+                async with websockets.connect(endpoint, open_timeout=timeout_seconds, close_timeout=timeout_seconds) as ws:
+                    await ws.send(json.dumps(message, ensure_ascii=True))
+                    raw_response = await asyncio.wait_for(ws.recv(), timeout=timeout_seconds)
+                    if isinstance(raw_response, bytes):
+                        raw_response = raw_response.decode("utf-8")
+                    return json.loads(raw_response)
+            except (OSError, asyncio.TimeoutError) as exc:
+                last_exc = exc
+                if attempt < 2:
+                    LOGGER.warning("WS request failed (attempt %d/3): %s", attempt + 1, type(exc).__name__)
+                    await asyncio.sleep(1.0)
+        raise last_exc
 
 
 @dataclass(frozen=True, slots=True)
