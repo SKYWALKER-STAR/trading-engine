@@ -55,6 +55,7 @@ class RiskEngineSettings:
     risk_decision_topic: str = TopicNames.RISK_DECISION_MADE
     require_position_snapshot: bool = False
     default_open_quantity: float = 1.0
+    default_open_notional: float = 0.0
 
     @classmethod
     def from_env(cls) -> "RiskEngineSettings":
@@ -66,6 +67,7 @@ class RiskEngineSettings:
             risk_decision_topic=getenv("RISK_DECISION_TOPIC", TopicNames.RISK_DECISION_MADE),
             require_position_snapshot=require_snapshot_raw in ("1", "true", "yes", "on"),
             default_open_quantity=float(getenv("RISK_DEFAULT_OPEN_QUANTITY", "1.0")),
+            default_open_notional=float(getenv("RISK_DEFAULT_OPEN_NOTIONAL", "0")),
         )
 
 

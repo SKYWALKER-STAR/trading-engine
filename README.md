@@ -325,6 +325,7 @@ Configuration comes from environment variables. `start.sh` also sources a reposi
 | `RISK_DECISION_TOPIC` | `risk.decision.made.v1` |
 | `RISK_REQUIRE_POSITION_SNAPSHOT` | `false` |
 | `RISK_DEFAULT_OPEN_QUANTITY` | `1.0` |
+| `RISK_DEFAULT_OPEN_NOTIONAL` | `0` (disabled; when > 0 use notional/price sizing) |
 
 When snapshots are optional, a missing snapshot is treated as flat. Set
 `RISK_REQUIRE_POSITION_SNAPSHOT=true` to reject signals until a snapshot is received.
@@ -840,6 +841,7 @@ POSITION_DEBUG_PORT=8001
 | `RISK_DECISION_TOPIC` | `risk.decision.made.v1` |
 | `RISK_REQUIRE_POSITION_SNAPSHOT` | `false` |
 | `RISK_DEFAULT_OPEN_QUANTITY` | `1.0` |
+| `RISK_DEFAULT_OPEN_NOTIONAL` | `0`（关闭；大于 0 时按 notional/price 计算下单数量） |
 
 仓位快照不是必需项时，缺失的快照会被视为空仓。生产环境建议设置
 `RISK_REQUIRE_POSITION_SNAPSHOT=true`，在收到有效仓位快照前拒绝开仓信号。

@@ -78,7 +78,7 @@ class RiskEngineMessageProcessor:
         position: PositionStateSnapshot | None,
     ) -> RiskDecisionPayload:
         now = datetime.now(UTC)
-        open_quantity = float(self._settings.default_open_quantity)
+        open_quantity = self._resolve_open_quantity(signal)
 
         if position is None:
             if self._settings.require_position_snapshot:
@@ -195,6 +195,42 @@ class RiskEngineMessageProcessor:
             decided_at=now,
             metadata={"approved_quantity": open_quantity},
         )
+
+    def _resolve_open_quantity(self, signal: StrategySignalPayload) -> float:
+        default_quantity = float(self._settings.default_open_quantity)
+        notional = float(self._settings.default_open_notional)
+        if notional <= 0:
+            return default_quantity
+
+        price = self._extract_price(signal)
+        if price is None or price <= 0:
+            LOGGER.warning(
+                "risk notional sizing fallback to default quantity: symbol=%s reason=missing_or_invalid_price",
+                signal.symbol,
+            )
+            return default_quantity
+
+        quantity = notional / price
+        if quantity <= 0:
+            LOGGER.warning(
+                "risk notional sizing fallback to default quantity: symbol=%s reason=non_positive_quantity",
+                signal.symbol,
+            )
+            return default_quantity
+        return quantity
+
+    @staticmethod
+    def _extract_price(signal: StrategySignalPayload) -> float | None:
+        for key in ("price", "close", "mark_price", "reference_price"):
+            value = signal.metadata.get(key)
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                try:
+                    return float(value)
+                except ValueError:
+                    continue
+        return None
 
     @staticmethod
     def _signal_with_risk_metadata(signal: StrategySignalPayload, *, quantity: float) -> StrategySignalPayload:

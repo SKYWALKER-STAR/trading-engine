@@ -22,7 +22,10 @@ class _FakePublisher:
         self.published.append((topic, event, key))
 
 
-def _signal_event(direction: str = "long") -> EngineEvent[StrategySignalPayload]:
+def _signal_event(
+    direction: str = "long",
+    metadata: dict[str, str | float] | None = None,
+) -> EngineEvent[StrategySignalPayload]:
     signal = StrategySignalPayload(
         strategy_name="factor_score",
         symbol="BTCUSDT",
@@ -30,7 +33,7 @@ def _signal_event(direction: str = "long") -> EngineEvent[StrategySignalPayload]
         score=88.2,
         confidence=0.71,
         timestamp=datetime(2026, 8, 11, 10, 0, tzinfo=UTC),
-        metadata={"interval": "1m"},
+        metadata={"interval": "1m"} if metadata is None else metadata,
     )
     return EngineEvent(
         event_id="sig-1",
@@ -106,3 +109,16 @@ def test_risk_engine_rejects_signal_when_position_snapshot_is_required_and_missi
     _, event, _ = publisher.published[0]
     assert event.payload.action.value == "reject"
     assert event.payload.reason == "position_snapshot_missing"
+
+
+def test_risk_engine_uses_notional_to_compute_open_quantity_when_close_is_available() -> None:
+    publisher = _FakePublisher()
+    settings = RiskEngineSettings(default_open_quantity=0.25, default_open_notional=1500.0)
+    processor = RiskEngineMessageProcessor(publisher=publisher, settings=settings)
+
+    processor.handle_strategy_signal(_signal_event(direction="long", metadata={"close": 30000.0}))
+
+    assert len(publisher.published) == 1
+    _, event, _ = publisher.published[0]
+    assert event.payload.action.value == "approve"
+    assert event.payload.metadata["approved_quantity"] == 0.05

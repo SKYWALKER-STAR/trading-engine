@@ -78,6 +78,7 @@ class FactorScoreStrategy(StrategyAlgorithm):
             metadata={
                 "reason": reason,
                 "interval": snapshot.interval,
+                "close": snapshot.close,
                 "trend_score_p": snapshot.trend_score_p,
                 "rsi_14": snapshot.rsi_14,
                 "adx_14": snapshot.adx_14,
