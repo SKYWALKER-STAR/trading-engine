@@ -394,6 +394,44 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.store.get("te-1")["status"], "filled")
         self.assertEqual(self.store.due(10**12), [])
 
+    def test_exchange_uncertain_errors_keep_task_for_query(self):
+        from decimal import Decimal
+        for code, status in ((-1000, 400), (-1006, 400), (-1007, 400), (-1, 503)):
+            with self.subTest(code=code):
+                self.redis = FakeRedis()
+                flow = self.trade_setup()
+                calls = []
+                def respond(endpoint, message, timeout):
+                    calls.append(message["method"])
+                    if message["method"] == "order.status":
+                        return {"error": {"code": -2013}}
+                    return {"status": status, "error": {"code": code, "msg": "uncertain"}}
+                gateway = BinanceFuturesWsGateway("unused", "key", "secret",
+                                                 transport=SimpleNamespace(request=respond))
+                worker = TradeExecutionWorker(flow, gateway)
+                with patch.object(BinanceFuturesWsGateway, "_normalize_quantity", return_value=Decimal("1")):
+                    worker.run_once()
+                state = self.store.get("te-1")
+                self.assertEqual(state["phase"], "unknown")
+                self.assertIn(str(code), state["last_error"])
+                self.assertEqual(self.redis.xrange(self.store.outbox), [])
+                with patch("time.time", return_value=10**12):
+                    worker.run_once()
+                self.assertEqual(calls, ["order.place", "order.status"])
+
+    def test_explicit_precision_rejection_is_terminal(self):
+        from decimal import Decimal
+        flow = self.trade_setup()
+        transport = SimpleNamespace(request=lambda *args: {
+            "status": 400, "error": {"code": -1111, "msg": "Bad precision"},
+        })
+        gateway = BinanceFuturesWsGateway("unused", "key", "secret", transport=transport)
+        with patch.object(BinanceFuturesWsGateway, "_normalize_quantity", return_value=Decimal("1")):
+            TradeExecutionWorker(flow, gateway).run_once()
+        self.assertEqual(self.store.get("te-1")["phase"], "done")
+        self.assertEqual(self.store.get("te-1")["status"], "rejected")
+        self.assertEqual(len(self.redis.xrange(self.store.outbox)), 1)
+
     def test_legacy_pending_order_is_only_reconciled(self):
         order = SimpleNamespace(symbol="BTCUSDT", client_order_id="old-1", side="BUY",
                                 original_quantity=1, order_type="MARKET", created_at=datetime.now(UTC),

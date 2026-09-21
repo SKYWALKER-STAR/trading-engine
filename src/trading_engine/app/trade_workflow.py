@@ -228,6 +228,8 @@ class TradeExecutionWorker:
             except Exception as exc:
                 result = None
                 error = type(exc).__name__
+                if getattr(exc, "error_code", None) is not None:
+                    error += f":{exc.error_code}"
 
             def finish(current: dict[str, Any] | None) -> WorkflowChange:
                 if current is None or current.get("lease_token") != token:

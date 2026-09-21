@@ -17,6 +17,13 @@ from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStat
 
 LOGGER = get_logger(__name__)
 
+class OrderExecutionUnknown(RuntimeError):
+    """The exchange may have accepted the order; reconcile before any new action."""
+
+    def __init__(self, code: str) -> None:
+        self.error_code = code
+        super().__init__(f"Order execution unknown: {code}")
+
 class BinanceWsTransport(Protocol):
     """Transport abstraction to allow testing without real websocket connections."""
 
@@ -154,9 +161,15 @@ class BinanceFuturesWsGateway:
                     request.symbol, new_client_order_id, params["quantity"], order_type)
         response = transport.request(self.endpoint, message, self.timeout_seconds)
         error = response.get("error")
+        response_status = str(response.get("status", ""))
+        if response_status.startswith("5"):
+            raise OrderExecutionUnknown(str(error.get("code", response_status))
+                                        if isinstance(error, dict) else response_status)
         if isinstance(error, dict):
             error_code = str(error.get("code", "unknown"))
             error_msg = str(error.get("msg", "unknown_error"))
+            if error_code in {"-1000", "-1006", "-1007", "unknown"}:
+                raise OrderExecutionUnknown(error_code)
             return TradeExecutionResult(
                 symbol=request.symbol,
                 status=TradeExecutionStatus.REJECTED,

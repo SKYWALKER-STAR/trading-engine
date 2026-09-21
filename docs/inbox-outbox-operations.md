@@ -106,6 +106,7 @@ trade:execution:{default}:outbox
 
 **UNKNOWN 与并发恢复策略**
 
+- 网关将 `-1000`、`-1006`、`-1007`、缺少错误码的错误回复及服务端 `5xx` 回复保留为执行结果不确定，由 worker 持久化 UNKNOWN 并查询原客户端订单 ID；不会发布拒单事件使仓位提前回滚。其中 `-1006` / `-1007` 的执行状态不确定语义来自 [Binance USDⓈ-M 错误码文档](https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/error-code)，其余上述情况采用保守查询策略。明确的参数拒绝（例如 `-1111`）仍按 REJECTED 终结任务。
 - 消费者只登记任务。worker 先在事务中把 pending_submit 改为 submitting，并记录租约 token，再进行唯一一次下单调用。下单 WS 传输不再自动重发 order.place。
 - 进程崩溃、回复丢失或保存结果失败后，租约到期由后续 worker 查询同一个 client_order_id。租约 token 用于阻止旧 worker 的迟到结果覆盖新持有者。
 - 普通未终结订单每约 30 秒查询一次；查询失败或未找到保留 unknown 阶段并继续查询。记录 last_error、reconciliation_attempts、next_due，供排障使用。已知部分成交状态不会仅因查询失败退回 NEW。
@@ -117,6 +118,8 @@ trade:execution:{default}:outbox
 当前对账覆盖本系统已知订单的状态与累计成交量，不是全账户持仓/资金/历史成交的全面核账。诊断报告中的部分成交撤单、减仓保护、风控快照等独立业务缺陷仍需分别处理；inbox/outbox 本身不会修正它们。
 
 **验证**
+
+最新离线验证：24 项 unittest 测试通过，包含不确定错误回复转查询，以及明确精度拒绝正常结束任务的回归测试。
 
 本次使用 Python 3.13 标准库 unittest 执行事务协议测试，无外部网络调用。命令：
 
