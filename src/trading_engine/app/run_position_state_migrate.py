@@ -36,13 +36,27 @@ def migrate_states(client: Any, target: RedisWorkflowStore, legacy_prefix: str, 
         encoded["revision"] = 1
         candidates = [order for order in active_orders if order.symbol.upper() == state.symbol.upper()]
         quantity_review = None
+        blockers = []
+        order_details = [{"client_order_id": getattr(order, "client_order_id", None),
+                          "order_id": getattr(order, "order_id", None),
+                          "status": getattr(getattr(order, "status", None), "value",
+                                            getattr(order, "status", None))}
+                         for order in candidates]
         normalized = False
         if not math.isfinite(state.quantity):
             quantity_review = "non_finite_quantity"
         elif state.quantity < 0:
-            eligible = ("projector_version" in state.metadata
-                        and state.direction.value == "short" and state.lifecycle.value == "short"
-                        and not state.active_order_id and not state.active_client_order_id and not candidates)
+            if "projector_version" not in state.metadata:
+                blockers.append("missing_projector_version")
+            if state.direction.value != "short":
+                blockers.append(f"direction={state.direction.value}")
+            if state.lifecycle.value != "short":
+                blockers.append(f"lifecycle={state.lifecycle.value}")
+            if state.active_order_id or state.active_client_order_id:
+                blockers.append("position_has_active_order_identity")
+            if candidates:
+                blockers.append("legacy_repository_has_active_orders")
+            eligible = not blockers
             if eligible and state.symbol.upper() in approved:
                 encoded["quantity"] = abs(state.quantity)
                 encoded["metadata"] = {**state.metadata, "migration_source_key": key,
@@ -53,7 +67,10 @@ def migrate_states(client: Any, target: RedisWorkflowStore, legacy_prefix: str, 
                 quantity_review = ("confirm_signed_short" if eligible else "inconsistent_signed_quantity")
         if apply and quantity_review:
             raise ValueError(f"Review quantity before migrating {state.symbol}: {quantity_review}; "
-                             "use --normalize-signed-short SYMBOL only for a verified settled projected short")
+                             f"source={key}; blockers={blockers}; legacy_active_orders={order_details}; "
+                             + ("verify positions/orders then use --normalize-signed-short SYMBOL"
+                                if quantity_review == "confirm_signed_short" else
+                                "resolve the reported conflicts before normalization; preview without --apply"))
         if (state.lifecycle.value not in ("flat", "long", "short")
                 and state.active_order_id is None and state.active_client_order_id is None):
             if len(candidates) == 1:
@@ -62,17 +79,19 @@ def migrate_states(client: Any, target: RedisWorkflowStore, legacy_prefix: str, 
             elif apply:
                 raise ValueError(f"Review active order identity before migrating {state.symbol}")
         target_key = target.state_key(state.symbol.upper())
-        planned.append((key, target_key, encoded, quantity_review, normalized, state.quantity))
+        planned.append((key, target_key, encoded, quantity_review, normalized, state.quantity,
+                        blockers, order_details))
     if apply and not planned and not initialize_empty:
         raise ValueError("No legacy execution states found; review account positions before --initialize-empty")
     result = []
-    for source, destination, payload, quantity_review, normalized, original_quantity in planned:
+    for source, destination, payload, quantity_review, normalized, original_quantity, blockers, order_details in planned:
         copied = bool(client.set(destination, json.dumps(payload, allow_nan=False), nx=True)) if apply else False
         result.append({"source": source, "destination": destination, "copied": copied,
                        "lifecycle": payload["lifecycle"],
                        "original_quantity": original_quantity if math.isfinite(original_quantity) else str(original_quantity),
                        "quantity": payload["quantity"] if math.isfinite(payload["quantity"]) else str(payload["quantity"]),
                        "quantity_review": quantity_review, "quantity_normalized": normalized,
+                       "normalization_blockers": blockers, "legacy_active_orders": order_details,
                        "needs_identity_review": payload["lifecycle"] not in ("flat", "long", "short")
                        and not payload.get("active_order_id") and not payload.get("active_client_order_id")})
     if apply:

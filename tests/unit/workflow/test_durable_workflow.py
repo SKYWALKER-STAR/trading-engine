@@ -479,6 +479,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.store.get("SNDKUSDT")["quantity"], 0.03)
         self.assertEqual(self.redis.get("old:SNDKUSDT"), raw)
 
+    def test_signed_short_reports_legacy_order_conflict(self):
+        self.redis.set("old:SNDKUSDT", json.dumps({
+            "symbol": "SNDKUSDT", "direction": "short", "lifecycle": "short",
+            "quantity": -0.03, "metadata": {"projector_version": "1.0.0"},
+        }))
+        orders = (SimpleNamespace(symbol="SNDKUSDT", client_order_id="old-order",
+                                  order_id="123", status="new"),)
+        result = migrate_states(self.redis, self.store, "old", active_orders=orders,
+                                normalize_signed_shorts=("SNDKUSDT",))
+        self.assertEqual(result[0]["normalization_blockers"], ["legacy_repository_has_active_orders"])
+        self.assertEqual(result[0]["legacy_active_orders"][0]["client_order_id"], "old-order")
+        with self.assertRaisesRegex(ValueError, "old-order"):
+            migrate_states(self.redis, self.store, "old", active_orders=orders, apply=True,
+                           normalize_signed_shorts=("SNDKUSDT",))
+
     def test_signed_short_confirmation_does_not_bypass_conflicts(self):
         base = {"symbol": "SNDKUSDT", "direction": "short", "lifecycle": "short",
                 "quantity": -0.03, "metadata": {"projector_version": "1.0.0"}}
