@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import hmac
 import json
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -103,7 +103,7 @@ class BinanceFuturesWsGateway:
             time_in_force = request.metadata.get("timeInForce", request.metadata.get("time_in_force"))
             if price is None or time_in_force is None:
                 raise ValueError("LIMIT order requires metadata.price and metadata.timeInForce")
-            normalized_price = self._normalize_price(request.symbol, float(price))
+            normalized_price = self._normalize_price(request.symbol, Decimal(str(price)))
             params["price"] = self._format_decimal(normalized_price)
             params["timeInForce"] = str(time_in_force).upper()
 
@@ -171,19 +171,20 @@ class BinanceFuturesWsGateway:
         return signature.hexdigest()
 
     @staticmethod
-    def _format_quantity(quantity: float) -> str:
+    def _format_quantity(quantity: Decimal) -> str:
         return BinanceFuturesWsGateway._format_decimal(quantity)
 
-    def _normalize_quantity(self, symbol: str, quantity: float) -> float:
+    def _normalize_quantity(self, symbol: str, quantity: float) -> Decimal:
+        quantity_decimal = Decimal(str(quantity))
         step_size = self._symbol_step_size(symbol.upper())
         if step_size is None or step_size <= 0:
-            return quantity
-        normalized = self._floor_to_step(quantity, step_size)
+            return quantity_decimal
+        normalized = self._floor_to_step(quantity_decimal, step_size)
         if normalized <= 0:
-            return quantity
+            return quantity_decimal
         return normalized
 
-    def _normalize_price(self, symbol: str, price: float) -> float:
+    def _normalize_price(self, symbol: str, price: Decimal) -> Decimal:
         tick_size = self._symbol_tick_size(symbol.upper())
         if tick_size is None or tick_size <= 0:
             return price
@@ -194,8 +195,8 @@ class BinanceFuturesWsGateway:
 
     @staticmethod
     @lru_cache(maxsize=256)
-    def _symbol_step_size_cached(rest_api_url: str, symbol: str) -> float | None:
-        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo?symbol={symbol}"
+    def _symbol_step_size_cached(rest_api_url: str, symbol: str) -> Decimal | None:
+        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo"
         request = Request(endpoint, method="GET")
         try:
             with urlopen(request, timeout=10) as response:
@@ -206,10 +207,14 @@ class BinanceFuturesWsGateway:
         symbols = payload.get("symbols") if isinstance(payload, dict) else None
         if not isinstance(symbols, list) or not symbols:
             return None
-        first = symbols[0]
-        if not isinstance(first, dict):
+        symbol_info = next(
+            (item for item in symbols
+             if isinstance(item, dict) and item.get("symbol") == symbol.upper()),
+            None,
+        )
+        if symbol_info is None:
             return None
-        filters = first.get("filters")
+        filters = symbol_info.get("filters")
         if not isinstance(filters, list):
             return None
 
@@ -220,19 +225,19 @@ class BinanceFuturesWsGateway:
                 continue
             raw_step = item.get("stepSize")
             try:
-                step_size = float(raw_step)
-            except (TypeError, ValueError):
+                step_size = Decimal(str(raw_step))
+            except (TypeError, ValueError, InvalidOperation):
                 return None
-            return step_size if step_size > 0 else None
+            return step_size if step_size.is_finite() and step_size > 0 else None
         return None
 
-    def _symbol_step_size(self, symbol: str) -> float | None:
+    def _symbol_step_size(self, symbol: str) -> Decimal | None:
         return self._symbol_step_size_cached(self.rest_api_url, symbol)
 
     @staticmethod
     @lru_cache(maxsize=256)
-    def _symbol_tick_size_cached(rest_api_url: str, symbol: str) -> float | None:
-        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo?symbol={symbol}"
+    def _symbol_tick_size_cached(rest_api_url: str, symbol: str) -> Decimal | None:
+        endpoint = f"{rest_api_url.rstrip('/')}/fapi/v1/exchangeInfo"
         request = Request(endpoint, method="GET")
         try:
             with urlopen(request, timeout=10) as response:
@@ -243,10 +248,14 @@ class BinanceFuturesWsGateway:
         symbols = payload.get("symbols") if isinstance(payload, dict) else None
         if not isinstance(symbols, list) or not symbols:
             return None
-        first = symbols[0]
-        if not isinstance(first, dict):
+        symbol_info = next(
+            (item for item in symbols
+             if isinstance(item, dict) and item.get("symbol") == symbol.upper()),
+            None,
+        )
+        if symbol_info is None:
             return None
-        filters = first.get("filters")
+        filters = symbol_info.get("filters")
         if not isinstance(filters, list):
             return None
 
@@ -257,27 +266,28 @@ class BinanceFuturesWsGateway:
                 continue
             raw_tick = item.get("tickSize")
             try:
-                tick_size = float(raw_tick)
-            except (TypeError, ValueError):
+                tick_size = Decimal(str(raw_tick))
+            except (TypeError, ValueError, InvalidOperation):
                 return None
-            return tick_size if tick_size > 0 else None
+            return tick_size if tick_size.is_finite() and tick_size > 0 else None
         return None
 
-    def _symbol_tick_size(self, symbol: str) -> float | None:
+    def _symbol_tick_size(self, symbol: str) -> Decimal | None:
         return self._symbol_tick_size_cached(self.rest_api_url, symbol)
 
     @staticmethod
-    def _floor_to_step(value: float, step: float) -> float:
+    def _floor_to_step(value: Decimal, step: Decimal) -> Decimal:
         value_decimal = Decimal(str(value))
         step_decimal = Decimal(str(step))
         if step_decimal <= 0:
             return value
         steps = (value_decimal / step_decimal).to_integral_value(rounding=ROUND_DOWN)
-        return float(steps * step_decimal)
+        return steps * step_decimal
 
     @staticmethod
-    def _format_decimal(value: float) -> str:
-        return (f"{value:.12f}").rstrip("0").rstrip(".")
+    def _format_decimal(value: Decimal) -> str:
+        text = format(value, "f")
+        return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def _map_status(exchange_status: str) -> TradeExecutionStatus:
