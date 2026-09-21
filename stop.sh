@@ -14,6 +14,9 @@ Engines:
   position               Stop the position engine
   risk                   Stop the risk engine
   trade                  Stop the trade engine
+  trade-worker           Stop execution and reconciliation
+  outbox                 Stop durable message publishing
+  binance-user-stream    Stop Binance execution update ingestion
   position-projector     Stop the position view projector
   position-debug-dashboard Stop the browser dashboard for tracking position transitions
   all                    Stop all engines
@@ -82,13 +85,16 @@ fi
 engine="$1"
 
 case "$engine" in
-    strategy|position|risk|trade|position-debug-dashboard)
+    strategy|position|risk|trade|binance-user-stream|outbox|trade-worker|position-debug-dashboard)
         stop_pids "$engine"
         ;;
     position-projector|projector)
         stop_pids position-projector
         ;;
     all)
+        stop_pids trade-worker
+        stop_pids outbox
+        stop_pids binance-user-stream
         stop_pids position
         stop_pids strategy
         stop_pids risk

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from os import getenv
 from typing import Any
 
 
@@ -45,6 +46,11 @@ class PositionDebugStore:
     def _view_state_key(self, symbol: str) -> str:
         normalized = self._normalize_symbol(symbol)
         return f"{self._key_prefix}:view:state:{normalized}:v1"
+
+    def _execution_state_key(self, symbol: str) -> str:
+        prefix = getenv("POSITION_EXECUTION_KEY_PREFIX", "position:execution")
+        account = getenv("ORDER_ACCOUNT_ID", "default").strip() or "default"
+        return f"{prefix}:{{{account}}}:state:{self._normalize_symbol(symbol)}"
 
     def record_transition(
         self,
@@ -91,8 +97,12 @@ class PositionDebugStore:
         view_key = self._view_state_key(symbol)
         debug_key = self._state_key(symbol)
 
-        raw = client.get(view_key)
-        source_key = view_key if raw is not None else None
+        execution_key = self._execution_state_key(symbol)
+        raw = client.get(execution_key)
+        source_key = execution_key if raw is not None else None
+        if raw is None:
+            raw = client.get(view_key)
+            source_key = view_key if raw is not None else None
         if raw is None:
             raw = client.get(debug_key)
             if raw is not None:
@@ -105,6 +115,7 @@ class PositionDebugStore:
         normalized = self._normalize_symbol(symbol)
         client = self._get_client()
         keys = {
+            "execution_state_key": self._execution_state_key(normalized),
             "view_state_key": self._view_state_key(normalized),
             "debug_state_key": self._state_key(normalized),
             "debug_history_key": self._history_key(normalized),

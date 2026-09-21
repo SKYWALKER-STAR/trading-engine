@@ -15,7 +15,6 @@ from trading_engine.contracts.messages import (
     RiskDecisionPayload,
     SignalDirection,
     StrategySignalPayload,
-    TopicNames,
     TradeActionFailedPayload,
     TradeActionPayload,
     build_event,
@@ -111,9 +110,11 @@ class PositionKafkaEventBus(EventBus):
 class PositionEngineMessageProcessor:
     """Consumes Kafka contracts and delegates to PositionManager."""
 
-    def __init__(self, manager: PositionManager, *, order_update_timeout_seconds: float = 30.0) -> None:
+    def __init__(self, manager: PositionManager, *, order_update_timeout_seconds: float = 30.0,
+                 recover_on_timeout: bool = True) -> None:
         self._manager = manager
         self._order_update_timeout_seconds = order_update_timeout_seconds
+        self._recover_on_timeout = recover_on_timeout
 
     def handle_risk_decision(self, event: EngineEvent[Any]) -> None:
         if event.event_type is not EngineEventType.RISK_DECISION_MADE:
@@ -124,7 +125,7 @@ class PositionEngineMessageProcessor:
             payload.symbol,
             payload.decided_at,
             self._order_update_timeout_seconds,
-        )
+        ) if self._recover_on_timeout else None
         if recovered is not None:
             LOGGER.warning(
                 "Recovered stale position transition before applying new risk decision",
@@ -187,26 +188,19 @@ def build_position_engine_consumer(
     producer_name: str = "position-engine",
     debug_store: PositionDebugStore | None = None,
 ) -> KafkaEventConsumer:
-    publisher = KafkaEventPublisher.from_env()
-    manager = PositionManager(
-        repository=repository,
-        publisher=PositionKafkaEventBus(
-            publisher=publisher,
-            settings=settings,
-            producer_name=producer_name,
-        ),
-        state_topic=TopicNames.POSITION_STATE_CHANGED,
-        action_topic=TopicNames.TRADE_ACTION_REQUESTED,
-        failed_action_topic=TopicNames.TRADE_ACTION_FAILED,
-        debug_store=debug_store,
-    )
-    processor = PositionEngineMessageProcessor(
-        manager,
-        order_update_timeout_seconds=settings.order_update_timeout_seconds,
-    )
-    consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group)
-    consumer.subscribe(settings.risk_decision_topic, processor.handle_risk_decision)
-    consumer.subscribe(settings.order_update_topic, processor.handle_order_update)
+    from trading_engine.app.position_workflow import PositionWorkflow
+    from trading_engine.infra.redis_position_repository import RedisPositionRepository
+    from trading_engine.infra.redis_workflow import RedisWorkflowStore
+
+    if not isinstance(repository, RedisPositionRepository):
+        raise TypeError("Durable position runtime requires RedisPositionRepository")
+    store = RedisWorkflowStore(repository._get_client(), repository._key_prefix, repository._account_id)
+    if not store.client.exists(f"{store.base}:initialized"):
+        raise RuntimeError("Execution state is not initialized; run position-state-migrate before starting position")
+    processor = PositionWorkflow(store, settings)
+    consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group, manual_commit=True)
+    consumer.subscribe(settings.risk_decision_topic, processor.handle)
+    consumer.subscribe(settings.order_update_topic, processor.handle)
     return consumer
 
 

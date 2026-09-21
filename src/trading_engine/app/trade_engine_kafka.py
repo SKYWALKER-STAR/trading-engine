@@ -309,20 +309,21 @@ def build_trade_engine_consumer(
     order_repository: OrderRepository | None = None,
     producer_name: str = "trade-engine",
 ) -> KafkaEventConsumer:
-    publisher = KafkaEventPublisher.from_env()
+    from os import getenv
+    from trading_engine.app.trade_workflow import TradeWorkflow
+    from trading_engine.infra.redis_workflow import create_workflow_store
+
     resolved_order_repository = (
         order_repository if order_repository is not None else RedisOrderRepository.from_env()
     )
-    processor = TradeEngineMessageProcessor(
-        publisher=publisher,
-        settings=settings,
-        gateway=gateway,
-        order_repository=resolved_order_repository,
-        producer_name=producer_name,
+    store = create_workflow_store(
+        getenv("TRADE_WORKFLOW_KEY_PREFIX", "trade:execution"),
+        getenv("ORDER_REDIS_URL", "redis://127.0.0.1:6379/0"), settings.order_account_id,
     )
-
-    consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group)
-    consumer.subscribe(settings.trade_action_topic, processor.handle_trade_action)
+    processor = TradeWorkflow(store, settings, resolved_order_repository)
+    consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group, manual_commit=True)
+    consumer.subscribe(settings.trade_action_topic, processor.handle_action)
+    consumer.subscribe(settings.order_update_topic, processor.handle_update)
     return consumer
 
 
@@ -330,7 +331,7 @@ def _to_trade_order_request(
     payload: TradeActionPayload,
     event: EngineEvent[Any],
     settings: TradeEngineSettings,
-) -> TradeOrderRequest:
+) -> TradeOrderRequest | None:
     raw_quantity: float | int | str | None = payload.quantity
     if raw_quantity is None:
         raw_metadata_quantity = payload.metadata.get("approved_quantity")

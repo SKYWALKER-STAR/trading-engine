@@ -69,17 +69,19 @@ class KafkaEventPublisher:
 class KafkaEventConsumer:
     """Consumes versioned engine events from Kafka and dispatches to local handlers."""
 
-    def __init__(self, bootstrap_servers: str, group_id: str) -> None:
+    def __init__(self, bootstrap_servers: str, group_id: str, *, manual_commit: bool = False) -> None:
         self._bootstrap_servers = bootstrap_servers
         self._group_id = group_id
+        self._manual_commit = manual_commit
         self._consumer: Any | None = None
         self._handlers: dict[str, list[Callable[[EngineEvent[Any]], None]]] = defaultdict(list)
 
     @classmethod
-    def from_env(cls, group_id: str) -> "KafkaEventConsumer":
+    def from_env(cls, group_id: str, *, manual_commit: bool = False) -> "KafkaEventConsumer":
         return cls(
             bootstrap_servers=getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
             group_id=group_id,
+            manual_commit=manual_commit,
         )
 
     def subscribe(self, topic: str, handler: Callable[[EngineEvent[Any]], None]) -> None:
@@ -95,6 +97,14 @@ class KafkaEventConsumer:
             )
             for handler in self._handlers[message.topic]:
                 handler(event)
+            if self._manual_commit:
+                from kafka import TopicPartition
+                from kafka.structs import OffsetAndMetadata
+
+                values: dict[str, Any] = {"offset": message.offset + 1, "metadata": ""}
+                if "leader_epoch" in OffsetAndMetadata._fields:
+                    values["leader_epoch"] = getattr(message, "leader_epoch", -1)
+                consumer.commit({TopicPartition(message.topic, message.partition): OffsetAndMetadata(**values)})
 
     def _get_consumer(self, topics: Iterable[str]) -> Any:
         if self._consumer is not None:
@@ -111,7 +121,7 @@ class KafkaEventConsumer:
             *topics,
             bootstrap_servers=self._bootstrap_servers,
             group_id=self._group_id,
-            enable_auto_commit=True,
+            enable_auto_commit=not self._manual_commit,
             value_deserializer=lambda value: value,
             key_deserializer=lambda value: None if value is None else value.decode("utf-8"),
             auto_offset_reset="latest",

@@ -80,6 +80,7 @@ class TradeEngineSettings:
     exchange: str = "binance"
     request_timeout_seconds: float = 10.0
     binance_ws_api_url: str = "wss://ws-fapi.binance.com/ws-fapi/v1"
+    binance_rest_api_url: str = "https://fapi.binance.com"
     binance_api_key: str = ""
     binance_api_secret: str = ""
     binance_order_type: str = "MARKET"
@@ -98,6 +99,7 @@ class TradeEngineSettings:
             exchange=getenv("TRADE_EXCHANGE", "binance").strip().lower(),
             request_timeout_seconds=float(getenv("TRADE_REQUEST_TIMEOUT_SECONDS", "10.0")),
             binance_ws_api_url=getenv("BINANCE_WS_API_URL", "wss://ws-fapi.binance.com/ws-fapi/v1"),
+            binance_rest_api_url=getenv("BINANCE_FUTURES_REST_API_URL", "https://fapi.binance.com"),
             binance_api_key=getenv("BINANCE_API_KEY", ""),
             binance_api_secret=getenv("BINANCE_API_SECRET", ""),
             binance_order_type=getenv("BINANCE_ORDER_TYPE", "MARKET").strip().upper(),

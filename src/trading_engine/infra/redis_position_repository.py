@@ -15,28 +15,28 @@ class RedisPositionRepository(PositionRepository):
     Stores one JSON document per symbol under a configurable key prefix.
     """
 
-    def __init__(self, redis_url: str, key_prefix: str = "binance:position:usdt_futures") -> None:
+    def __init__(self, redis_url: str, key_prefix: str = "position:execution", account_id: str = "default") -> None:
         self._redis_url = redis_url
         self._key_prefix = key_prefix
+        self._account_id = account_id
         self._client: Any | None = None
 
     @classmethod
     def from_env(cls) -> "RedisPositionRepository":
         redis_url = getenv("POSITION_REDIS_URL", "redis://127.0.0.1:6379/0")
-        key_prefix = getenv(
-            "POSITION_VIEW_KEY_PREFIX",
-            getenv("POSITION_REDIS_KEY_PREFIX", "binance:position:usdt_futures"),
-        )
-        return cls(redis_url=redis_url, key_prefix=key_prefix)
+        key_prefix = getenv("POSITION_EXECUTION_KEY_PREFIX", "position:execution")
+        return cls(redis_url=redis_url, key_prefix=key_prefix,
+                   account_id=getenv("ORDER_ACCOUNT_ID", "default").strip() or "default")
 
     def get(self, symbol: str) -> PositionState | None:
         client = self._get_client()
         raw = client.get(self._view_state_key(symbol))
         if raw is None:
-            raw = client.get(self._legacy_key(symbol))
-        if raw is None:
             return None
-        payload = json.loads(raw)
+        return self.decode(json.loads(raw))
+
+    @staticmethod
+    def decode(payload: dict[str, Any]) -> PositionState:
         updated_at_raw = payload.get("updated_at")
         updated_at = None
         if updated_at_raw is not None:
@@ -57,7 +57,11 @@ class RedisPositionRepository(PositionRepository):
         )
 
     def save(self, state: PositionState) -> None:
-        payload = {
+        self._get_client().set(self._view_state_key(state.symbol), json.dumps(self.encode(state)))
+
+    @staticmethod
+    def encode(state: PositionState) -> dict[str, Any]:
+        return {
             "symbol": state.symbol,
             "direction": state.direction.value,
             "lifecycle": state.lifecycle.value,
@@ -69,11 +73,6 @@ class RedisPositionRepository(PositionRepository):
             "updated_at": state.updated_at.isoformat() if state.updated_at is not None else None,
             "metadata": state.metadata,
         }
-        canonical = json.dumps(payload, ensure_ascii=True)
-        client = self._get_client()
-        client.set(self._view_state_key(state.symbol), canonical)
-        # Keep writing the legacy key during migration.
-        client.set(self._legacy_key(state.symbol), canonical)
 
     @staticmethod
     def _normalize_symbol(symbol: str) -> str:
@@ -81,11 +80,7 @@ class RedisPositionRepository(PositionRepository):
 
     def _view_state_key(self, symbol: str) -> str:
         normalized = self._normalize_symbol(symbol)
-        return f"{self._key_prefix}:view:state:{normalized}:v1"
-
-    def _legacy_key(self, symbol: str) -> str:
-        normalized = self._normalize_symbol(symbol)
-        return f"{self._key_prefix}:{normalized}"
+        return f"{self._key_prefix}:{{{self._account_id}}}:state:{normalized}"
 
     def _get_client(self) -> Any:
         if self._client is not None:
@@ -96,5 +91,6 @@ class RedisPositionRepository(PositionRepository):
         except ImportError as exc:
             raise RuntimeError("redis is not installed. Install with: pip install redis") from exc
 
-        self._client = redis.Redis.from_url(self._redis_url, decode_responses=True)
+        self._client = redis.Redis.from_url(self._redis_url, decode_responses=True,
+                                           socket_timeout=10, socket_connect_timeout=10)
         return self._client

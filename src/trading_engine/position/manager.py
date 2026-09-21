@@ -84,6 +84,24 @@ class PositionManager:
 
     def handle_order_event(self, event: PositionOrderEvent) -> PositionDecision:
         current = self._load(event.symbol, event.updated_at)
+        # The user stream may deliver a fill before the order-response NEW event.
+        # Bind only through the client identity persisted with the trade action.
+        if (event.order_id is not None
+                and ((current.active_order_id is not None and event.order_id == current.active_order_id)
+                     or (current.active_order_id is None and current.active_client_order_id is not None
+                         and event.client_order_id == current.active_client_order_id))
+                and event.status in (OrderUpdateStatus.FILLED, OrderUpdateStatus.PARTIALLY_FILLED)):
+            transitions = {
+                PositionLifecycle.OPEN_LONG: PositionLifecycle.OPENING_LONG,
+                PositionLifecycle.OPEN_SHORT: PositionLifecycle.OPENING_SHORT,
+                PositionLifecycle.CLOSE_LONG: PositionLifecycle.CLOSING_LONG,
+                PositionLifecycle.CLOSE_SHORT: PositionLifecycle.CLOSING_SHORT,
+            }
+            current = self._update_state(
+                current, lifecycle=transitions.get(current.lifecycle, current.lifecycle),
+                updated_at=event.updated_at, active_order_id=event.order_id,
+                active_client_order_id=current.active_client_order_id,
+            )
         self._validate_order_id_before_position_change(current, event)
         order_id = event.order_id or current.active_order_id
         client_order_id = event.client_order_id or current.active_client_order_id

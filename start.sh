@@ -12,6 +12,7 @@ if [[ -f "${SCRIPT_DIR}/.env" ]]; then
     source "${SCRIPT_DIR}/.env"
     set +a
 fi
+export KAFKA_ACKS="${KAFKA_ACKS:-all}"
 
 usage() {
     cat <<'EOF'
@@ -22,6 +23,9 @@ Engines:
   position               Start the position engine
   risk                   Start the risk engine
   trade                  Start the trade engine
+  trade-worker           Execute durable orders and reconcile UNKNOWN
+  outbox                 Publish durable outgoing messages
+  binance-user-stream    Ingest Binance execution updates
   position-projector     Start the position view projector
   position-debug-dashboard Start the browser dashboard for tracking position transitions
   all                    Start all engines
@@ -70,7 +74,7 @@ case "$engine" in
         fi
         start_engine strategy "$@"
         ;;
-    position|risk|trade|position-debug-dashboard)
+    position|risk|trade|binance-user-stream|outbox|trade-worker|position-debug-dashboard)
         start_engine "$engine" "$@"
         ;;
     position-projector|projector)
@@ -86,6 +90,9 @@ case "$engine" in
             exit 2
         fi
         start_engine position
+        start_engine binance-user-stream
+        start_engine outbox
+        start_engine trade-worker
         start_engine strategy --stream --interval-seconds 1
         start_engine risk
         start_engine trade

@@ -1,5 +1,10 @@
 # Trading Engine Platform
 
+Current durable execution runtime: see [inbox/outbox implementation and upgrade steps](docs/inbox-outbox-operations.md).
+Position and trade consumers now require the outbox relay and trade worker. Existing deployments
+must migrate execution state before restarting the position engine; older architecture notes below
+describe the previous synchronous submission path.
+
 [English](#trading-engine-platform) | [中文](#交易引擎平台中文版)
 
 A modular, event-driven trading platform written in Python 3.11. It currently implements

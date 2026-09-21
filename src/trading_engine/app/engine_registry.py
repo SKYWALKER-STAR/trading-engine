@@ -10,6 +10,8 @@ from trading_engine.app.run_risk_engine import run as run_risk_engine
 from trading_engine.app.run_trade_engine import run as run_trade_engine
 from trading_engine.app.run_position_view_projector import run as run_position_view_projector
 from trading_engine.app.run_strategy_engine_factor import run as run_strategy_engine_factor
+from trading_engine.app.run_workflow_services import run_outbox, run_trade_worker
+from trading_engine.app.run_position_state_migrate import run as run_position_state_migrate
 
 
 EngineRunner = Callable[[list[str] | None], None]
@@ -26,6 +28,9 @@ def get_engine_specs() -> dict[str, EngineSpec]:
     """Returns the centralized engine registry used by the CLI router."""
 
     specs = (
+        EngineSpec(name="position-state-migrate", description="Preview/copy legacy execution state", runner=run_position_state_migrate),
+        EngineSpec(name="outbox", description="Publish durable outgoing events", runner=run_outbox),
+        EngineSpec(name="trade-worker", description="Execute and reconcile durable orders", runner=run_trade_worker),
         EngineSpec(
             name="strategy",
             description="Run strategy engine factor pipeline",

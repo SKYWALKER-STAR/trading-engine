@@ -34,7 +34,7 @@ def run(argv: list[str] | None = None) -> None:
             "binance_ws_api_url": settings.binance_ws_api_url,
         },
     )
-    consumer.consume_forever((settings.trade_action_topic,))
+    consumer.consume_forever((settings.trade_action_topic, settings.order_update_topic))
 
 
 def _validate_settings(settings: TradeEngineSettings) -> None:
@@ -55,6 +55,7 @@ def _build_gateway(settings: TradeEngineSettings) -> TradeExecutionGateway:
         endpoint=settings.binance_ws_api_url,
         api_key=settings.binance_api_key,
         api_secret=settings.binance_api_secret,
+        rest_api_url=settings.binance_rest_api_url,
         order_type=settings.binance_order_type,
         recv_window=settings.binance_recv_window,
         timeout_seconds=settings.request_timeout_seconds,

@@ -37,7 +37,8 @@ class BinanceWsApiTransport:
             raise RuntimeError("websockets is not installed. Install with: pip install websockets") from exc
 
         last_exc: Exception = RuntimeError("unreachable")
-        for attempt in range(3):
+        attempts = 1 if message.get("method") == "order.place" else 3
+        for attempt in range(attempts):
             try:
                 async with websockets.connect(endpoint, open_timeout=timeout_seconds, close_timeout=timeout_seconds) as ws:
                     await ws.send(json.dumps(message, ensure_ascii=True))
@@ -47,7 +48,7 @@ class BinanceWsApiTransport:
                     return json.loads(raw_response)
             except (OSError, asyncio.TimeoutError) as exc:
                 last_exc = exc
-                if attempt < 2:
+                if attempt < attempts - 1:
                     LOGGER.warning("WS request failed (attempt %d/3): %s", attempt + 1, type(exc).__name__)
                     await asyncio.sleep(1.0)
         raise last_exc
@@ -65,6 +66,39 @@ class BinanceFuturesWsGateway:
     recv_window: int = 5000
     timeout_seconds: float = 10.0
     transport: BinanceWsTransport | None = None
+
+    def query_order(self, symbol: str, client_order_id: str) -> TradeExecutionResult | None:
+        """None means not found, never permission to resubmit an uncertain order."""
+        params: dict[str, Any] = {
+            "apiKey": self.api_key, "symbol": symbol.upper(),
+            "origClientOrderId": client_order_id, "recvWindow": self.recv_window,
+            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+        }
+        params["signature"] = self._sign(params)
+        response = (self.transport or BinanceWsApiTransport()).request(
+            self.endpoint, {"id": str(uuid4()), "method": "order.status", "params": params},
+            self.timeout_seconds,
+        )
+        error = response.get("error")
+        if isinstance(error, dict):
+            if str(error.get("code")) == "-2013":
+                return None
+            raise RuntimeError(f"Order query failed: {error.get('code')}")
+        result = response.get("result")
+        if not isinstance(result, dict) or result.get("orderId") is None or "status" not in result:
+            raise RuntimeError("Incomplete order query response")
+        if result["status"] not in {"NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}:
+            raise RuntimeError("Unknown exchange order status")
+        if result.get("symbol", symbol.upper()) != symbol.upper():
+            raise RuntimeError("Order query symbol mismatch")
+        if result.get("clientOrderId", client_order_id) != client_order_id:
+            raise RuntimeError("Order query client identity mismatch")
+        return TradeExecutionResult(
+            symbol=symbol.upper(), status=_map_status(str(result["status"])),
+            updated_at=datetime.now(UTC), order_id=str(result["orderId"]),
+            client_order_id=client_order_id, filled_quantity=float(result.get("executedQty", "0")),
+            metadata={"exchange": "binance", "execution_source": "reconciliation"},
+        )
 
     def submit_order(self, request: TradeOrderRequest) -> TradeExecutionResult:
         transport = self.transport or BinanceWsApiTransport()
@@ -107,6 +141,7 @@ class BinanceFuturesWsGateway:
             params["price"] = self._format_decimal(normalized_price)
             params["timeInForce"] = str(time_in_force).upper()
 
+        params["timestamp"] = int(datetime.now(UTC).timestamp() * 1000)
         params["signature"] = self._sign(params)
 
         message = {
@@ -115,7 +150,8 @@ class BinanceFuturesWsGateway:
             "params": params,
         }
 
-        LOGGER.info("sending order request: %s", message)
+        LOGGER.info("sending order: symbol=%s client_order_id=%s quantity=%s type=%s",
+                    request.symbol, new_client_order_id, params["quantity"], order_type)
         response = transport.request(self.endpoint, message, self.timeout_seconds)
         error = response.get("error")
         if isinstance(error, dict):

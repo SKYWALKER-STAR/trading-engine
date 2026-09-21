@@ -1,0 +1,61 @@
+﻿{
+  "inventory": {
+    "source_files": 54,
+    "source_lines": 5949,
+    "test_files": 17,
+    "test_functions": 65,
+    "syntax_errors": 0
+  },
+  "clickhouse_password_default": [
+    {
+      "line": 42,
+      "nonempty_literal_default": true
+    }
+  ],
+  "partial_then_cancel": {
+    "quantity_before_cancel": 0.4,
+    "quantity_after_cancel": 0.0,
+    "lifecycle_after_cancel": "flat"
+  },
+  "fill_before_new": {
+    "exception": "ValueError",
+    "message": "filled update for BTCUSDT has no active order to match"
+  },
+  "duplicate_terminal_fill": {
+    "exception": "ValueError",
+    "message": "filled update for BTCUSDT has no active order to match"
+  },
+  "projector": {
+    "direction": "short",
+    "quantity": "-2",
+    "same_key_as_position_repository": true,
+    "same_snapshot_hash_changes_with_poll_time": true,
+    "active_order_id": null
+  },
+  "same_bar_twice": {
+    "first_direction": "flat",
+    "second_direction": "long",
+    "open_time_unchanged": true
+  },
+  "exit_blocked_by_entry_confidence_rule": {
+    "should_exit_long": true,
+    "signal_emitted": false,
+    "rejected_reasons": [
+      "confidence_too_low"
+    ]
+  },
+  "logging_missing_extra": {
+    "exception": "Formatting field not found in record: 'direction'"
+  },
+  "save_then_publish_failure": {
+    "persisted_lifecycle": "open_long",
+    "replayed_signal_creates_action": false
+  },
+  "gateway_offline_request": {
+    "quantity": "0.123",
+    "price": "65000.1",
+    "positionSide": "BOTH",
+    "reduceOnly_present": false,
+    "tiny_quantity_fallback": "0.0004"
+  }
+}
