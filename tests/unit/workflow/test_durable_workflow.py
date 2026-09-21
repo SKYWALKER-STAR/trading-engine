@@ -464,6 +464,36 @@ class WorkflowTests(unittest.TestCase):
         migrate_states(self.redis, self.store, "old", apply=True, initialize_empty=True)
         self.assertTrue(self.redis.exists(f"{self.store.base}:initialized"))
 
+    def test_signed_projected_short_requires_symbol_confirmation(self):
+        raw = json.dumps({"symbol": "SNDKUSDT", "direction": "short", "lifecycle": "short",
+                          "quantity": -0.03, "metadata": {"projector_version": "1.0.0"}})
+        self.redis.set("old:SNDKUSDT", raw)
+        preview = migrate_states(self.redis, self.store, "old")
+        self.assertEqual(preview[0]["quantity_review"], "confirm_signed_short")
+        with self.assertRaises(ValueError):
+            migrate_states(self.redis, self.store, "old", apply=True)
+        self.assertIsNone(self.store.get("SNDKUSDT"))
+        result = migrate_states(self.redis, self.store, "old", apply=True,
+                                normalize_signed_shorts=("SNDKUSDT",))
+        self.assertTrue(result[0]["quantity_normalized"])
+        self.assertEqual(self.store.get("SNDKUSDT")["quantity"], 0.03)
+        self.assertEqual(self.redis.get("old:SNDKUSDT"), raw)
+
+    def test_signed_short_confirmation_does_not_bypass_conflicts(self):
+        base = {"symbol": "SNDKUSDT", "direction": "short", "lifecycle": "short",
+                "quantity": -0.03, "metadata": {"projector_version": "1.0.0"}}
+        for changes, orders in (({"direction": "long"}, ()), ({"lifecycle": "closing_short"}, ()),
+                                ({"active_client_order_id": "pending"}, ()), ({"metadata": {}}, ()),
+                                ({}, (SimpleNamespace(symbol="SNDKUSDT"),)),
+                                ({"quantity": float("nan")}, ())):
+            with self.subTest(changes=changes):
+                self.redis.set("old:SNDKUSDT", json.dumps({**base, **changes}))
+                with self.assertRaises(ValueError):
+                    migrate_states(self.redis, self.store, "old", apply=True, active_orders=orders,
+                                   normalize_signed_shorts=("SNDKUSDT",))
+                self.assertIsNone(self.store.get("SNDKUSDT"))
+                self.assertFalse(self.redis.exists(f"{self.store.base}:initialized"))
+
     def test_query_order_uses_stable_identity_and_maps_not_found(self):
         messages = []
         def request(endpoint, message, timeout):

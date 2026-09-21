@@ -119,7 +119,7 @@ trade:execution:{default}:outbox
 
 **验证**
 
-最新离线验证：24 项 unittest 测试通过，包含不确定错误回复转查询，以及明确精度拒绝正常结束任务的回归测试。
+最新离线验证：26 项 unittest 测试通过，包含不确定错误回复转查询、明确精度拒绝正常结束任务，以及带符号空仓迁移确认和冲突拦截的回归测试。
 
 本次使用 Python 3.13 标准库 unittest 执行事务协议测试，无外部网络调用。命令：
 
@@ -131,3 +131,14 @@ $env:PYTHONPATH = 'src'
 覆盖：状态/回执/完整事件共同提交、提交前失败、WATCH 冲突重算、进程重启后重复输入、Kafka 不可用、发送成功后删除失败、手动 offset 边界、同客户端订单重复任务、发送后进程崩溃、交易结果持久化失败、UNKNOWN 未找到不重发、用户流终态与下单 ACK 竞争、旧 pending 迁移只查询、迁移预览/NX、查询身份及下单传输不重试。
 
 这些测试使用内存模拟 Redis 的事务接口，不证明真实服务器在断电、内存耗尽或故障切换时的持久性。完整 pytest、ruff、mypy 和真实 Redis/Kafka/Binance 集成测试尚未运行：测试依赖下载被本次环境权限限制，安装请求未获批准。上线前应在已有依赖的开发/测试环境完成这些检查；未执行任何真实下单或线上迁移。
+
+**旧投影空仓负数量的迁移**
+
+旧记录若含 `metadata.projector_version`、`direction=short`、`lifecycle=short` 且数量为负，预览会输出 `quantity_review=confirm_signed_short`。默认应用仍拒绝这类记录。停止旧写入进程，核对当前实际空仓数量以及未完成订单后，可按币种显式确认：
+
+```bash
+python -m trading_engine position-state-migrate -- --normalize-signed-short SNDKUSDT
+python -m trading_engine position-state-migrate -- --apply --normalize-signed-short SNDKUSDT
+```
+
+第一条只预览转换，第二条应用。选项可重复指定多个已核对币种。转换仅接受带投影标记、short/short、无活动订单 ID 且旧订单库无该币种活动订单的记录；方向冲突、过渡状态、非有限数量仍拒绝。脚本不会自动查询交易所，记录无活动订单 ID 不等于交易所无挂单。目标数量取绝对值，并在 metadata 保存来源键、原数量和转换方式；旧数据保持原样，已存在目标仍不覆盖。若旧记录与当前实际仓位不一致，先恢复正确状态，不用此选项直接迁移。
