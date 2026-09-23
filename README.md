@@ -8,6 +8,8 @@
 
 ## 系统架构
 
+进程与基础设施的部署关系见 [平台部署架构图](docs/deployment-architecture.md)。
+
 ```mermaid
 flowchart TD
     CH[ClickHouse 因子] --> S[strategy 策略]

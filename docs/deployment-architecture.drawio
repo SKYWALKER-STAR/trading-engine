@@ -1,0 +1,269 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" type="device" version="24.7.17">
+  <diagram id="deployment" name="平台部署架构">
+    <mxGraphModel dx="1900" dy="1350" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1350" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;b&gt;Trading Engine · 平台部署架构&lt;/b&gt;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=28;">
+          <mxGeometry as="geometry" x="60" y="25" width="1400" height="55" />
+        </mxCell>
+        <mxCell id="subtitle" value="按当前代码与启动脚本绘制；表示部署关系，不代表已核查线上服务器。" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=16;">
+          <mxGeometry as="geometry" x="60" y="85" width="1650" height="35" />
+        </mxCell>
+        <mxCell id="appbox" value="" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=#f5f9ff;strokeColor=#aec5e0;dashed=1;">
+          <mxGeometry as="geometry" x="100" y="420" width="1660" height="230" />
+        </mxCell>
+        <mxCell id="applabel" value="&lt;b&gt;应用节点 · 7 个交易执行进程&lt;/b&gt;　start.sh / Python 多进程" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=16;">
+          <mxGeometry as="geometry" x="120" y="430" width="1500" height="35" />
+        </mxCell>
+        <mxCell id="supportbox" value="" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=#f4faf4;dashed=1;">
+          <mxGeometry as="geometry" x="100" y="1010" width="1660" height="170" />
+        </mxCell>
+        <mxCell id="supportlabel" value="&lt;b&gt;同一应用节点 · 2 个同步投影与调试进程&lt;/b&gt;　合计 9 个常驻进程" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=16;">
+          <mxGeometry as="geometry" x="120" y="1020" width="1500" height="35" />
+        </mxCell>
+        <mxCell id="FEED" value="&lt;b&gt;行情 / 因子生产服务&lt;/b&gt;&lt;br&gt;仓库外，部署待确认" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="70" y="150" width="250" height="75" />
+        </mxCell>
+        <mxCell id="B" value="&lt;b&gt;Binance Futures&lt;/b&gt;&lt;br&gt;WS 下单 / 查单 · 用户流&lt;br&gt;REST 交易规则" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1350" y="140" width="330" height="95" />
+        </mxCell>
+        <mxCell id="K" value="&lt;b&gt;Kafka 事件总线&lt;/b&gt;&lt;br&gt;strategy.signal · risk.decision · position.state · trade.action · order.update" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="140" y="295" width="1500" height="80" />
+        </mxCell>
+        <mxCell id="S" value="&lt;b&gt;strategy&lt;/b&gt;&lt;br&gt;因子入场 / 百分比退出" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="125" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="R" value="&lt;b&gt;risk&lt;/b&gt;&lt;br&gt;风控 / 内存仓位快照" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="355" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="P" value="&lt;b&gt;position&lt;/b&gt;&lt;br&gt;执行仓位 / 数量 / 成本" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="585" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="T" value="&lt;b&gt;trade&lt;/b&gt;&lt;br&gt;任务登记 / 回报归并" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="815" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="O" value="&lt;b&gt;outbox&lt;/b&gt;&lt;br&gt;发布两个工作流事件" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1045" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="W" value="&lt;b&gt;trade-worker&lt;/b&gt;&lt;br&gt;执行下单 / UNKNOWN 查询" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1275" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="U" value="&lt;b&gt;binance-user-stream&lt;/b&gt;&lt;br&gt;订单与成交回报接收" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1505" y="515" width="190" height="80" />
+        </mxCell>
+        <mxCell id="kS" value="发布策略信号" edge="1" parent="1" source="S" target="K" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.054;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="kR" value="信号 / 仓位 ↔ 风控决策" edge="1" parent="1" source="K" target="R" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;startArrow=block;startFill=1;exitX=0.208;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="kP" value="风控决策 / 订单更新" edge="1" parent="1" source="K" target="P" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.361;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="kT" value="交易动作 / 订单更新" edge="1" parent="1" source="K" target="T" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.514;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="kO" value="发布持久化事件" edge="1" parent="1" source="O" target="K" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.667;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="kU" value="发布订单更新" edge="1" parent="1" source="U" target="K" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.974;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="CH" value="&lt;b&gt;ClickHouse&lt;/b&gt;&lt;br&gt;行情因子" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="85" y="770" width="220" height="90" />
+        </mxCell>
+        <mxCell id="PE" value="&lt;b&gt;Redis · 执行仓位&lt;/b&gt;&lt;br&gt;position:execution:{account}:*&lt;br&gt;状态 / 均价 / inbox / outbox" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="480" y="770" width="340" height="110" />
+        </mxCell>
+        <mxCell id="TE" value="&lt;b&gt;Redis · 订单工作流&lt;/b&gt;&lt;br&gt;trade:execution:{account}:*&lt;br&gt;订单 / 任务 / 租约 / inbox / outbox" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="960" y="770" width="350" height="110" />
+        </mxCell>
+        <mxCell id="V" value="&lt;b&gt;Redis · 实际持仓与调试&lt;/b&gt;&lt;br&gt;raw / view / debug&lt;br&gt;与执行仓位分离" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1440" y="770" width="320" height="110" />
+        </mxCell>
+        <mxCell id="feedch" value="写入行情因子" edge="1" parent="1" source="FEED" target="CH" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;dashed=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="35" y="188" />
+              <mxPoint x="35" y="815" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="chs" value="轮询因子" edge="1" parent="1" source="CH" target="S" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.5;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="ppe" value="事务：仓位 + inbox + outbox" edge="1" parent="1" source="P" target="PE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="tte" value="事务登记 / 更新订单" edge="1" parent="1" source="T" target="TE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=1;entryX=0.2;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="tew" value="领取任务 / 保存结果" edge="1" parent="1" source="TE" target="W" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;startArrow=block;startFill=1;exitX=0.9;exitY=0;entryX=0.5;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="peo" value="读取待发事件；ACK 后删除" edge="1" parent="1" source="PE" target="O" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.85;exitY=0;entryX=0.2;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="teo" value="读取待发事件；ACK 后删除" edge="1" parent="1" source="TE" target="O" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.8;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="pes" value="价格退出启用时读取执行仓位" edge="1" parent="1" source="PE" target="S" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;dashed=1;exitX=0;exitY=0.7;entryX=0;entryY=0.6;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="365" y="847" />
+              <mxPoint x="365" y="695" />
+              <mxPoint x="105" y="695" />
+              <mxPoint x="105" y="563" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="wb" value="WS 下单 / 查单；REST 规则" edge="1" parent="1" source="W" target="B" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;startArrow=block;startFill=1;exitX=0.5;exitY=0;entryX=0;entryY=0.6;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1370" y="255" />
+              <mxPoint x="1300" y="255" />
+              <mxPoint x="1300" y="197" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="bu" value="用户数据流" edge="1" parent="1" source="B" target="U" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=1;exitY=0.5;entryX=1;entryY=0.4;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1795" y="188" />
+              <mxPoint x="1795" y="547" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="SYNC" value="&lt;b&gt;实际持仓同步服务&lt;/b&gt;&lt;br&gt;仓库外，部署待确认" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1450" y="930" width="300" height="65" />
+        </mxCell>
+        <mxCell id="bsync" value="外部采集" edge="1" parent="1" source="B" target="SYNC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;dashed=1;exitX=1;exitY=0.85;entryX=1;entryY=0.5;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1840" y="221" />
+              <mxPoint x="1840" y="962" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="syncv" value="写 raw" edge="1" parent="1" source="SYNC" target="V" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=0;entryX=0.5;entryY=1;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="J" value="&lt;b&gt;position-projector&lt;/b&gt;&lt;br&gt;读取 raw → 写入 view" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="1230" y="1070" width="235" height="80" />
+        </mxCell>
+        <mxCell id="D" value="&lt;b&gt;position-debug-dashboard&lt;/b&gt;&lt;br&gt;默认 127.0.0.1:8001" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="650" y="1070" width="300" height="80" />
+        </mxCell>
+        <mxCell id="Browser" value="&lt;b&gt;运维浏览器&lt;/b&gt;&lt;br&gt;本机 HTTP 访问" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;">
+          <mxGeometry as="geometry" x="190" y="1070" width="220" height="80" />
+        </mxCell>
+        <mxCell id="vj" value="读 raw / 写 view" edge="1" parent="1" source="V" target="J" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;startArrow=block;startFill=1;exitX=0;exitY=0.8;entryX=0.5;entryY=0;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1380" y="858" />
+              <mxPoint x="1380" y="980" />
+              <mxPoint x="1347" y="980" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ped" value="读取执行状态" edge="1" parent="1" source="PE" target="D" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0.5;exitY=1;entryX=0.25;entryY=0;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="vd" value="实际视图 / 调试历史" edge="1" parent="1" source="V" target="D" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;exitX=0;exitY=0.5;entryX=0.85;entryY=0;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1380" y="825" />
+              <mxPoint x="1380" y="905" />
+              <mxPoint x="905" y="905" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="browserd" value="HTTP" edge="1" parent="1" source="Browser" target="D" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontFamily=Microsoft YaHei;fontSize=12;labelBackgroundColor=#ffffff;strokeWidth=1.6;strokeColor=#64748b;">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="notes" value="&lt;b&gt;部署说明&lt;/b&gt;　蓝色：应用进程　黄色：基础设施　紫色：外部系统　绿色：辅助进程&lt;br&gt;Redis 图块是逻辑数据区，可共用实例；基础设施可同机或独立部署。outbox 的可选 observer 将调试历史写入 Redis（图中省略该连线）。&lt;br&gt;执行链路按成交更新数量与均价；同步链路只更新实际视图，不覆盖执行状态。position-state-migrate 为一次性命令，不计入 9 个常驻进程。&lt;br&gt;当前 nohup 启动无自动拉起或 readiness 屏障；百分比退出依赖 strategy 轮询，不是交易所托管止损。" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=14;">
+          <mxGeometry as="geometry" x="90" y="1200" width="1740" height="120" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="routes" name="Kafka 路由与部署说明">
+    <mxGraphModel grid="1" page="1" pageWidth="1400" pageHeight="1000">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title2" value="&lt;b&gt;Kafka 默认事件路由&lt;/b&gt;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=26;">
+          <mxGeometry as="geometry" x="60" y="30" width="1200" height="60" />
+        </mxCell>
+        <mxCell id="cell0-0" value="&lt;b&gt;Topic&lt;/b&gt;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="125" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell0-1" value="&lt;b&gt;生产者&lt;/b&gt;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="125" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell0-2" value="&lt;b&gt;本仓库消费者&lt;/b&gt;" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="125" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell1-0" value="strategy.signal.generated.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="197" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell1-1" value="strategy" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="197" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell1-2" value="risk" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="197" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell2-0" value="risk.decision.made.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="269" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell2-1" value="risk" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="269" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell2-2" value="position" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="269" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell3-0" value="position.state.changed.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="341" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell3-1" value="outbox（内容来自 position）" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="341" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell3-2" value="risk" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="341" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell4-0" value="trade.action.requested.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="413" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell4-1" value="outbox（内容来自 position）" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="413" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell4-2" value="trade" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="413" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell5-0" value="trade.order.update.received.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="485" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell5-1" value="用户流；outbox 发布 worker 结果" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="485" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell5-2" value="position、trade" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="485" width="300" height="72" />
+        </mxCell>
+        <mxCell id="cell6-0" value="trade.action.failed.v1" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="60" y="557" width="510" height="72" />
+        </mxCell>
+        <mxCell id="cell6-1" value="outbox（内容来自 position）" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="570" y="557" width="460" height="72" />
+        </mxCell>
+        <mxCell id="cell6-2" value="无内置业务消费者" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;rounded=0;align=left;spacingLeft=18;">
+          <mxGeometry as="geometry" x="1030" y="557" width="300" height="72" />
+        </mxCell>
+        <mxCell id="details" value="&lt;b&gt;部署与可靠性边界&lt;/b&gt;&lt;br&gt;• trade 登记任务，trade-worker 从 Redis 领取任务并访问 Binance，outbox 发布待发事件。&lt;br&gt;• position / trade 事务成功后手动提交 Kafka offset；outbox 等待 ACK 后删除记录。&lt;br&gt;• 属于至少一次投递与去重，不是跨 Redis、Kafka、Binance 的分布式事务。&lt;br&gt;• 风控使用内存仓位快照，不会从实际持仓 view 自动加载启动持仓。&lt;br&gt;• 持仓成本位于 position:execution；订单累计成交金额位于 trade:execution。&lt;br&gt;• 原始持仓同步、行情因子生产服务属于仓库外依赖，图中不推断其内部部署。&lt;br&gt;• 参照 docs/deployment-architecture.md；架构图表示代码支持的关系，不是线上拓扑探测结果。" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=15;fontFamily=Microsoft YaHei;spacing=8;fillColor=none;strokeColor=none;align=left;fontSize=17;">
+          <mxGeometry as="geometry" x="65" y="660" width="1260" height="260" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
