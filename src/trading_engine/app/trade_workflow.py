@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
+from trading_engine.common.execution_cost import decimal_value
 from trading_engine.app.trade_engine_kafka import _to_trade_order_request
 from trading_engine.config.settings import TradeEngineSettings
 from trading_engine.contracts.messages import EngineEvent, EngineEventType, OrderUpdatePayload, build_event
@@ -42,7 +43,7 @@ class TradeWorkflow:
             "request": request_document(request), "symbol": request.symbol.upper(),
             "client_order_id": request.client_order_id, "order_id": None,
             "status": "pending_submit", "phase": "pending_submit",
-            "cumulative_filled_quantity": 0.0, "next_due": time.time(),
+            "cumulative_filled_quantity": 0.0, "cumulative_filled_quote": "0", "next_due": time.time(),
             "lease_token": None, "lease_until": 0.0,
             "created_at": request.requested_at.isoformat(), "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -125,6 +126,8 @@ class TradeWorkflow:
                 OrderUpdatePayload(
                     symbol=result.symbol, order_id=result.order_id, client_order_id=result.client_order_id,
                     status=status.value, updated_at=result.updated_at,
+                    cumulative_filled_quote=result.cumulative_filled_quote,
+                    last_filled_price=result.last_filled_price,
                     filled_quantity=result.filled_quantity,
                     cumulative_filled_quantity=result.filled_quantity, metadata=dict(result.metadata),
                 ),
@@ -150,7 +153,7 @@ class TradeWorkflow:
             quantity = payload.cumulative_filled_quantity
             if quantity is None:
                 quantity = payload.filled_quantity
-            if self.apply_result(state, payload.status, payload.order_id, quantity):
+            if self.apply_result(state, payload.status, payload.order_id, quantity, payload.cumulative_filled_quote):
                 state["updated_at"] = payload.updated_at.isoformat()
             return WorkflowChange(state, due_at=state.get("next_due"))
 
@@ -159,7 +162,7 @@ class TradeWorkflow:
 
     @staticmethod
     def apply_result(state: dict[str, Any], status: str, order_id: str | None,
-                     quantity: float | None) -> bool:
+                     quantity: float | None, quote: str | None = None) -> bool:
         if status not in TERMINAL | {"new", "partially_filled"}:
             raise ValueError(f"Unsupported order status: {status}")
         if state["status"] in TERMINAL:
@@ -169,7 +172,18 @@ class TradeWorkflow:
             return False
         if state["status"] == "partially_filled" and status == "new":
             return False
-        changed = state["status"] != status or (quantity is not None and quantity != previous_quantity)
+        parsed_quote = None if quote is None else decimal_value(quote)
+        if parsed_quote == 0 and quantity is not None and quantity > 0:
+            parsed_quote = None
+        previous_quote = state.get("cumulative_filled_quote")
+        if (parsed_quote is not None and previous_quote is not None
+                and parsed_quote < decimal_value(previous_quote)):
+            return False
+        next_quote = str(parsed_quote) if parsed_quote is not None else (
+            previous_quote if quantity is None or quantity == previous_quantity else None)
+        changed = (state["status"] != status or (quantity is not None and quantity != previous_quantity)
+                   or next_quote != previous_quote)
+        state["cumulative_filled_quote"] = next_quote
         state["status"] = status
         state["order_id"] = order_id or state.get("order_id")
         if quantity is not None:
@@ -252,6 +266,7 @@ class TradeExecutionWorker:
                     resolved = replace(result, client_order_id=identity)
                     changed = self.workflow.apply_result(
                         current, resolved.status.value, resolved.order_id, resolved.filled_quantity,
+                        resolved.cumulative_filled_quote,
                     )
                     if changed:
                         current["last_error"] = None

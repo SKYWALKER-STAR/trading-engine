@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from trading_engine.common.execution_cost import cumulative_quote
 from trading_engine.common.logger import get_logger
 from trading_engine.config.settings import BinanceUserDataStreamSettings
 from trading_engine.contracts.messages import (
@@ -76,7 +77,9 @@ def parse_order_trade_update(message: dict[str, Any]) -> OrderUpdatePayload | No
         order_id=_optional_identifier(order.get("i")),
         status=_normalize_order_status(order["X"]),
         updated_at=updated_at,
-        # Backward-compatible alias. PositionManager still consumes this field in phase one.
+        # Backward-compatible cumulative-quantity alias (never a fill increment).
+        cumulative_filled_quote=cumulative_quote(order.get("z"), order.get("ap")),
+        last_filled_price=None if order.get("L") is None else str(order["L"]),
         filled_quantity=cumulative,
         last_filled_quantity=last_fill,
         cumulative_filled_quantity=cumulative,

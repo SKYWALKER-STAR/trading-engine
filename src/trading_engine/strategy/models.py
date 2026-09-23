@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from trading_engine.position.models import PositionState
 from trading_engine.contracts.messages import SignalDirection
 from trading_engine.domain.market_data import MarketFactorSnapshot, MarketTick
 
@@ -29,6 +30,8 @@ class StrategyContext:
 class FactorStrategyContext:
     factor_snapshot: MarketFactorSnapshot
     now: datetime
+    position: PositionState | None = None
+    position_loaded: bool = False
 
 
 StrategyInputContext = StrategyContext | FactorStrategyContext

@@ -11,10 +11,14 @@ class StrategyEngineSettings:
     min_confidence: float = 0.55
     max_market_data_age_seconds: int = 2
     signal_topic: str = TopicNames.STRATEGY_SIGNAL_GENERATED
+    take_profit_pct: str | None = None
+    stop_loss_pct: str | None = None
 
     @classmethod
     def from_env(cls) -> "StrategyEngineSettings":
         return cls(
+            take_profit_pct=getenv("STRATEGY_TAKE_PROFIT_PCT") or None,
+            stop_loss_pct=getenv("STRATEGY_STOP_LOSS_PCT") or None,
             min_confidence=float(getenv("STRATEGY_MIN_CONFIDENCE", "0.55")),
             max_market_data_age_seconds=int(getenv("STRATEGY_MAX_DATA_AGE_SECONDS", "2")),
             signal_topic=getenv("STRATEGY_SIGNAL_TOPIC", TopicNames.STRATEGY_SIGNAL_GENERATED),

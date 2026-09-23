@@ -32,7 +32,7 @@ class MarketDataFreshnessRule(StrategyRule):
         now_cst = self._to_cst(context.now)
         data_time_cst = self._to_cst(data_time)
         age = now_cst - data_time_cst
-        if age <= self._max_age:
+        if timedelta(0) <= age <= self._max_age:
             return True, None
         return False, "market_data_stale"
 

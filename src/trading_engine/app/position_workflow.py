@@ -63,6 +63,16 @@ class PositionWorkflow:
             elif event.payload.approved_signal is not None:
                 if event.payload.approved_signal.symbol.upper() != symbol:
                     raise ValueError("Risk decision and signal symbols differ")
+                signal_metadata = event.payload.approved_signal.metadata
+                if signal_metadata.get("exit_policy") == "position_price_pct":
+                    # A queued exit for an earlier holding must not close a new one.
+                    if (state is None or not state.cost_complete
+                            or state.entry_avg_price != signal_metadata.get("entry_avg_price")
+                            or (state.opened_at.isoformat() if state.opened_at else "")
+                            != signal_metadata.get("position_opened_at")
+                            or (state.last_client_order_id or "")
+                            != signal_metadata.get("position_last_client_order_id")):
+                        return WorkflowChange(raw)
 
             repo = PlannedPositionRepository(state)
             buffer = BufferedPublisher()

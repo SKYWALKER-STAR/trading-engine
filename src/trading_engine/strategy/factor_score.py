@@ -35,7 +35,9 @@ class FactorScoreStrategy(StrategyAlgorithm):
         history = self._trend_history[snapshot.symbol]
         history.append(trend)
 
-        position = self._position_by_symbol.get(snapshot.symbol, SignalDirection.FLAT)
+        position = (SignalDirection.FLAT if context.position is None
+                    else SignalDirection(context.position.direction.value)) if context.position_loaded else (
+                        self._position_by_symbol.get(snapshot.symbol, SignalDirection.FLAT))
 
         if position == SignalDirection.LONG:
             if self._should_exit_long(snapshot, history):

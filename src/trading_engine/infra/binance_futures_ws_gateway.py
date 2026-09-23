@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 from uuid import uuid4
+from trading_engine.common.execution_cost import cumulative_quote
 from trading_engine.common.logger import get_logger
 from trading_engine.trade.models import TradeExecutionResult, TradeExecutionStatus, TradeOrderRequest
 
@@ -103,6 +104,7 @@ class BinanceFuturesWsGateway:
         return TradeExecutionResult(
             symbol=symbol.upper(), status=_map_status(str(result["status"])),
             updated_at=datetime.now(UTC), order_id=str(result["orderId"]),
+            cumulative_filled_quote=cumulative_quote(result.get("executedQty"), result.get("avgPrice"), result.get("cumQuote")),
             client_order_id=client_order_id, filled_quantity=float(result.get("executedQty", "0")),
             metadata={"exchange": "binance", "execution_source": "reconciliation"},
         )
@@ -124,8 +126,7 @@ class BinanceFuturesWsGateway:
 
         position_side = request.metadata.get("positionSide", request.metadata.get("position_side"))
         if position_side is not None:
-            #params["positionSide"] = str(position_side).upper()
-            params["positionSide"] = "BOTH"
+            params["positionSide"] = str(position_side).upper()
 
         new_order_resp_type = request.metadata.get("newOrderRespType")
         if new_order_resp_type is not None:
@@ -135,9 +136,9 @@ class BinanceFuturesWsGateway:
         if new_client_order_id is not None:
             params["newClientOrderId"] = str(new_client_order_id)
 
-        #reduce_only = request.metadata.get("reduceOnly")
-        #if reduce_only is not None:
-        #    params["reduceOnly"] = str(reduce_only).lower()
+        reduce_only = request.metadata.get("reduceOnly")
+        if reduce_only is not None and params.get("positionSide", "BOTH") == "BOTH":
+            params["reduceOnly"] = str(reduce_only).lower()
 
         if order_type == "LIMIT":
             price = request.metadata.get("price")
@@ -207,6 +208,7 @@ class BinanceFuturesWsGateway:
             order_id=order_id,
             client_order_id=client_order_id,
             filled_quantity=filled_quantity,
+            cumulative_filled_quote=cumulative_quote(filled_raw, result.get("avgPrice"), result.get("cumQuote")),
             metadata={
                 "exchange": "binance",
                 "exchange_status": exchange_status,

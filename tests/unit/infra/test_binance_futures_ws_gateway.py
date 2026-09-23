@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
+from io import BytesIO
+import json
 from os import getenv
 from typing import Any
 from uuid import uuid4
@@ -9,6 +12,24 @@ import pytest
 
 from trading_engine.infra.binance_futures_ws_gateway import BinanceFuturesWsGateway
 from trading_engine.trade.models import TradeExecutionStatus, TradeOrderRequest
+
+
+@pytest.fixture(autouse=True)
+def offline_exchange_rules(request, monkeypatch):
+    if request.node.name == "test_binance_gateway_places_real_market_order":
+        yield
+        return
+    rules = {"symbols": [{"symbol": "BTCUSDT", "filters": [
+        {"filterType": "LOT_SIZE", "stepSize": "0.001"},
+        {"filterType": "PRICE_FILTER", "tickSize": "0.1"},
+    ]}]}
+    monkeypatch.setattr("trading_engine.infra.binance_futures_ws_gateway.urlopen",
+                        lambda *args, **kwargs: BytesIO(json.dumps(rules).encode()))
+    BinanceFuturesWsGateway._symbol_step_size_cached.cache_clear()
+    BinanceFuturesWsGateway._symbol_tick_size_cached.cache_clear()
+    yield
+    BinanceFuturesWsGateway._symbol_step_size_cached.cache_clear()
+    BinanceFuturesWsGateway._symbol_tick_size_cached.cache_clear()
 
 
 class _FakeTransport:
@@ -124,7 +145,7 @@ def test_binance_gateway_uses_send_time_timestamp_not_request_time() -> None:
     assert sent_message["params"]["timestamp"] != int(old_request.requested_at.timestamp() * 1000)
 
 
-def test_binance_gateway_floors_quantity_to_symbol_step_size() -> None:
+def test_binance_gateway_floors_quantity_to_symbol_step_size(monkeypatch) -> None:
     transport = _FakeTransport(
         {
             "id": "1",
@@ -143,29 +164,10 @@ def test_binance_gateway_floors_quantity_to_symbol_step_size() -> None:
         transport=transport,
     )
 
-    gateway._symbol_step_size_cached.cache_clear()
-    original_step_lookup = gateway._symbol_step_size_cached
-
-    def _fake_step_lookup(_rest_api_url: str, _symbol: str) -> float | None:
-        return 0.001
-
-    BinanceFuturesWsGateway._symbol_step_size_cached = staticmethod(_fake_step_lookup)  # type: ignore[method-assign]
-    try:
-        request = _build_request()
-        request = TradeOrderRequest(
-            symbol=request.symbol,
-            side=request.side,
-            quantity=0.123456,
-            order_type=request.order_type,
-            requested_at=request.requested_at,
-            correlation_id=request.correlation_id,
-            causation_id=request.causation_id,
-            client_order_id=request.client_order_id,
-            metadata=request.metadata,
-        )
-        gateway.submit_order(request)
-    finally:
-        BinanceFuturesWsGateway._symbol_step_size_cached = original_step_lookup  # type: ignore[method-assign]
+    from dataclasses import replace
+    monkeypatch.setattr(BinanceFuturesWsGateway, "_symbol_step_size",
+                        lambda self, symbol: Decimal("0.001"))
+    gateway.submit_order(replace(_build_request(), quantity=0.123456))
 
     _, sent_message, _ = transport.calls[0]
     assert sent_message["params"]["quantity"] == "0.123"
@@ -214,7 +216,7 @@ def test_binance_gateway_includes_optional_parameters_for_limit_orders() -> None
     assert params["timeInForce"] == "GTC"
     assert params["price"] == "43000"
     assert params["positionSide"] == "SHORT"
-    assert params["reduceOnly"] == "true"
+    assert "reduceOnly" not in params  # Hedge Mode uses positionSide instead.
     assert params["newOrderRespType"] == "RESULT"
 
 

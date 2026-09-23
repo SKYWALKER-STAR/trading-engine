@@ -382,13 +382,21 @@ PYTHONPATH=src python -B -m unittest discover -s tests/unit/workflow -v
 工作流测试使用内存 Redis 接口、模拟发布器和网关，覆盖重复输入、WATCH 冲突、ACK 后崩溃、结果保存失败、UNKNOWN 查询、回报竞争及迁移检查。
 这些测试不证明真实 Redis/Kafka 故障切换的持久性，也不代替 Binance 联调。完整测试套件中的显式实盘探针需单独配置。
 
+## 执行仓位均价与百分比平仓
+
+交易链路已记录 `entry_avg_price`、`cost_complete` 和 `opened_at`，通过成交累计金额维护成本。部分成交撤单保留持仓，部分平仓保留剩余仓位均价。
+
+可选设置 `STRATEGY_TAKE_PROFIT_PCT` / `STRATEGY_STOP_LOSS_PCT`（例如 `5` / `2` 表示 +5% / -2%）；默认关闭。启用后，已有仓位由百分比规则管理退出，参考价为因子快照 close，空仓仍使用原因子入场逻辑。未知成本不会触发价格退出，本版不增加加仓动作。
+
+配置、旧数据及部署边界见 [执行仓位成本与百分比平仓](docs/execution-cost-and-price-exits.md)。
+
 ## 实现状态与剩余工作
 
 已实现：仓位/交易 inbox 与 outbox、按分区手动提交、稳定客户端订单 ID、带租约的持久化任务、UNKNOWN 查询、活动订单匹配、累计成交差值、关联信息传递和执行/投影键空间隔离。
 
 仍需完善：
 
-- 部分成交后撤单的数量处理，以及网关 reduceOnly / positionSide 参数处理。
+- 持仓成本的历史回填、终态后缺失成本修补及双向持仓完整建模。
 - 风控启动加载权威持仓、快照完整性与新鲜度检查、全账户持仓/资金/成交对账。
 - 独立成交 ID 持久化账本、策略状态重建、源码默认凭据清理与轮换。
 - 真实服务集成与故障测试、死信处理、任务积压指标、UNKNOWN 报警和审计。

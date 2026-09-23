@@ -104,6 +104,8 @@ def _decode_payload(event_type: EngineEventType, payload: dict[str, Any]) -> Any
             order_id=None if payload.get("order_id") is None else str(payload["order_id"]),
             status=str(payload["status"]),
             updated_at=datetime.fromisoformat(payload["updated_at"]),
+            cumulative_filled_quote=payload.get("cumulative_filled_quote"),
+            last_filled_price=payload.get("last_filled_price"),
             filled_quantity=None if payload.get("filled_quantity") is None else float(payload["filled_quantity"]),
             last_filled_quantity=(
                 None
@@ -160,6 +162,9 @@ def _decode_position_state_snapshot(payload: dict[str, Any]) -> PositionStateSna
         direction=str(payload["direction"]),
         lifecycle=str(payload["lifecycle"]),
         quantity=float(payload["quantity"]),
+        entry_avg_price=payload.get("entry_avg_price"),
+        cost_complete=payload.get("cost_complete", False),
+        opened_at=None if payload.get("opened_at") is None else datetime.fromisoformat(payload["opened_at"]),
         active_order_id=None if payload.get("active_order_id") is None else str(payload["active_order_id"]),
         updated_at=updated_at,
         active_client_order_id=(
