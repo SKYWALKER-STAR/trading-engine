@@ -24,7 +24,7 @@ class PriceExitPolicy:
 
     def evaluate(self, context: FactorStrategyContext) -> StrategyDecision | None:
         if not context.position_loaded:
-            return StrategyDecision.rejected(["execution_position_unavailable"])
+            return None  # no active position yet; let the original entry logic handle this evaluation
         state = context.position
         if state is None or state.lifecycle is PositionLifecycle.FLAT:
             return None  # original algorithm still manages entries
