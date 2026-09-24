@@ -324,7 +324,7 @@ class PositionManager:
             signal=signal,
             metadata={
                 **signal.metadata,
-                "reduceOnly": "true" if action_type in (TradeActionType.CLOSE_LONG, TradeActionType.CLOSE_SHORT) else "false",
+                #"reduceOnly": "true" if action_type in (TradeActionType.CLOSE_LONG, TradeActionType.CLOSE_SHORT) else "false",
                 "lifecycle": state.lifecycle.value,
                 "signal_direction": signal.direction.value,
             },
