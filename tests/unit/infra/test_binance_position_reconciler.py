@@ -18,7 +18,18 @@ class FakeRepository:
 
 
 class FakeAccountTransport:
-    def fetch_account_snapshot(self, rest_api_url: str, api_key: str, timeout_seconds: float) -> list[dict[str, object]]:
+    def fetch_account_snapshot(
+        self,
+        rest_api_url: str,
+        api_key: str,
+        timeout_seconds: float,
+        *,
+        api_secret: str | None = None,
+        recv_window: int = 5000,
+    ) -> list[dict[str, object]]:
+        assert api_key == "test-key"
+        assert api_secret == "test-secret"
+        assert recv_window == 5000
         return [
             {"symbol": "BTCUSDT", "positionAmt": "0"},
             {"symbol": "ETHUSDT", "positionAmt": "2.5"},
@@ -43,6 +54,8 @@ def test_reconcile_once_updates_states_from_account_snapshot() -> None:
         api_key="test-key",
         repository=repository,
         transport=FakeAccountTransport(),
+        api_secret="test-secret",
+        recv_window=5000,
     )
 
     reconciler.reconcile_once(source="startup")

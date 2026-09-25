@@ -40,6 +40,8 @@ def run(argv: list[str] | None = None) -> None:
             api_key=api_key,
             repository=repository,
             timeout_seconds=float(getenv("BINANCE_POSITION_RECONCILE_TIMEOUT_SECONDS", "10.0")),
+            api_secret=getenv("BINANCE_API_SECRET", ""),
+            recv_window=int(getenv("BINANCE_RECV_WINDOW", "5000")),
         )
 
         if settings.binance_position_reconcile_on_start:
