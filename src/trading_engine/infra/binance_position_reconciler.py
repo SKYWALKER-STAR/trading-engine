@@ -166,6 +166,8 @@ class BinancePositionReconciler:
         )
 
         aggregated: dict[str, float] = {}
+        entry_price_weighted: dict[str, float] = {}
+        entry_price_total_weight: dict[str, float] = {}
         for position in positions:
             symbol = str(position.get("symbol") or "").strip().upper()
             if not symbol:
@@ -177,12 +179,25 @@ class BinancePositionReconciler:
                 quantity = 0.0
             aggregated[symbol] = aggregated.get(symbol, 0.0) + quantity
 
+            entry_price_raw = position.get("entryPrice")
+            try:
+                entry_price = float(entry_price_raw or 0)
+            except (TypeError, ValueError):
+                entry_price = 0.0
+            if entry_price > 0 and quantity != 0:
+                weight = abs(quantity)
+                entry_price_weighted[symbol] = entry_price_weighted.get(symbol, 0.0) + (weight * entry_price)
+                entry_price_total_weight[symbol] = entry_price_total_weight.get(symbol, 0.0) + weight
+
         LOGGER.info(
             "Aggregated Binance account snapshot by symbol",
             extra={
                 "source": source,
                 "aggregated_positions": {
                     symbol: quantity for symbol, quantity in sorted(aggregated.items())
+                },
+                "entry_price_weights": {
+                    symbol: round(value, 8) for symbol, value in sorted(entry_price_weighted.items())
                 },
             },
         )
@@ -191,6 +206,35 @@ class BinancePositionReconciler:
         now = datetime.now(UTC)
 
         for symbol, quantity in sorted(aggregated.items()):
+            previous = self._repository.get(symbol)
+            entry_avg_price = None
+            if quantity != 0:
+                total_weight = entry_price_total_weight.get(symbol, 0.0)
+                weighted_sum = entry_price_weighted.get(symbol, 0.0)
+                if total_weight > 0 and weighted_sum > 0:
+                    entry_avg_price = str(weighted_sum / total_weight)
+                elif previous is not None and previous.entry_avg_price is not None and previous.quantity > 0:
+                    entry_avg_price = previous.entry_avg_price
+                    LOGGER.warning(
+                        "Missing Binance entry price during reconciliation; fell back to existing Redis entry_avg_price",
+                        extra={
+                            "source": source,
+                            "symbol": symbol,
+                            "quantity": quantity,
+                            "existing_entry_avg_price": previous.entry_avg_price,
+                        },
+                    )
+                else:
+                    LOGGER.warning(
+                        "Non-zero Binance position without recoverable entry_avg_price; cost remains incomplete",
+                        extra={
+                            "source": source,
+                            "symbol": symbol,
+                            "quantity": quantity,
+                            "entry_price_present": False,
+                        },
+                    )
+
             if quantity > 0:
                 state = PositionState(
                     symbol=symbol,
@@ -198,6 +242,8 @@ class BinancePositionReconciler:
                     lifecycle=PositionLifecycle.LONG,
                     quantity=abs(quantity),
                     updated_at=now,
+                    entry_avg_price=entry_avg_price,
+                    cost_complete=entry_avg_price is not None,
                 )
             elif quantity < 0:
                 state = PositionState(
@@ -206,6 +252,8 @@ class BinancePositionReconciler:
                     lifecycle=PositionLifecycle.SHORT,
                     quantity=abs(quantity),
                     updated_at=now,
+                    entry_avg_price=entry_avg_price,
+                    cost_complete=entry_avg_price is not None,
                 )
             else:
                 state = PositionState(
@@ -214,6 +262,8 @@ class BinancePositionReconciler:
                     lifecycle=PositionLifecycle.FLAT,
                     quantity=0.0,
                     updated_at=now,
+                    entry_avg_price=None,
+                    cost_complete=False,
                 )
 
             previous = self._repository.get(symbol)

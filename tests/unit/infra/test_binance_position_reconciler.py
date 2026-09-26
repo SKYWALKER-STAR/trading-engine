@@ -31,9 +31,9 @@ class FakeAccountTransport:
         assert api_secret == "test-secret"
         assert recv_window == 5000
         return [
-            {"symbol": "BTCUSDT", "positionAmt": "0"},
-            {"symbol": "ETHUSDT", "positionAmt": "2.5"},
-            {"symbol": "SOLUSDT", "positionAmt": "-1.25"},
+            {"symbol": "BTCUSDT", "positionAmt": "0", "entryPrice": "0"},
+            {"symbol": "ETHUSDT", "positionAmt": "2.5", "entryPrice": "2500.0"},
+            {"symbol": "SOLUSDT", "positionAmt": "-1.25", "entryPrice": "120.0"},
         ]
 
 
@@ -71,7 +71,11 @@ def test_reconcile_once_updates_states_from_account_snapshot() -> None:
     assert eth.direction is PositionDirection.LONG
     assert eth.lifecycle is PositionLifecycle.LONG
     assert eth.quantity == 2.5
+    assert eth.entry_avg_price == "2500.0"
+    assert eth.cost_complete is True
 
     assert sol.direction is PositionDirection.SHORT
     assert sol.lifecycle is PositionLifecycle.SHORT
     assert sol.quantity == 1.25
+    assert sol.entry_avg_price == "120.0"
+    assert sol.cost_complete is True
