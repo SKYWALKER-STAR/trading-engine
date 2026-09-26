@@ -12,6 +12,7 @@ from trading_engine.contracts.messages import (
     PositionStateSnapshot,
     StrategySignalPayload,
 )
+from trading_engine.position.models import PositionDirection, PositionLifecycle, PositionState
 
 
 class _FakePublisher:
@@ -109,6 +110,30 @@ def test_risk_engine_rejects_signal_when_position_snapshot_is_required_and_missi
     _, event, _ = publisher.published[0]
     assert event.payload.action.value == "reject"
     assert event.payload.reason == "position_snapshot_missing"
+
+
+def test_risk_engine_uses_redis_position_state_as_authority_when_event_snapshot_is_stale() -> None:
+    publisher = _FakePublisher()
+    settings = RiskEngineSettings(default_open_quantity=0.25)
+
+    class _FakeRepository:
+        def get(self, symbol: str) -> PositionState | None:
+            return PositionState(
+                symbol=symbol,
+                direction=PositionDirection.LONG,
+                lifecycle=PositionLifecycle.LONG,
+                quantity=0.42,
+                updated_at=datetime(2026, 8, 11, 10, 2, tzinfo=UTC),
+            )
+
+    processor = RiskEngineMessageProcessor(publisher=publisher, settings=settings, repository=_FakeRepository())
+    processor.handle_position_state(_position_event(direction="short", lifecycle="short", quantity=0.15))
+    processor.handle_strategy_signal(_signal_event(direction="long"))
+
+    assert len(publisher.published) == 1
+    _, event, _ = publisher.published[0]
+    assert event.payload.action.value == "reject"
+    assert event.payload.reason == "already_long"
 
 
 def test_risk_engine_uses_notional_to_compute_open_quantity_when_close_is_available() -> None:

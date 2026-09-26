@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 '''from collections.abc import Deque'''
 from typing import Deque
 
+from trading_engine.common.logger import get_logger
 from trading_engine.domain.market_data import MarketFactorSnapshot
 from trading_engine.strategy.interfaces import StrategyAlgorithm
 from trading_engine.strategy.models import (
@@ -13,6 +14,8 @@ from trading_engine.strategy.models import (
     StrategyInputContext,
     StrategySignal,
 )
+
+LOGGER = get_logger(__name__)
 
 
 class FactorScoreStrategy(StrategyAlgorithm):
@@ -24,10 +27,20 @@ class FactorScoreStrategy(StrategyAlgorithm):
         self._trend_history: dict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=3))
 
     def generate(self, context: StrategyInputContext) -> StrategySignal | None:
+        LOGGER.info(
+            "generate start: context_type=%s context_now=%s position_loaded=%s position=%s",
+            type(context).__name__,
+            getattr(context, "now", None),
+            getattr(context, "position_loaded", None),
+            getattr(getattr(context, "position", None), "direction", None),
+        )
+
         if isinstance(context, StrategyContext):
+            LOGGER.info("generate rejected: context_type=%s reason=non_factor_context", type(context).__name__)
             return None
 
         if not isinstance(context, FactorStrategyContext):
+            LOGGER.info("generate rejected: context_type=%s reason=invalid_factor_context", type(context).__name__)
             return None
 
         snapshot = context.factor_snapshot
@@ -38,6 +51,25 @@ class FactorScoreStrategy(StrategyAlgorithm):
         position = (SignalDirection.FLAT if context.position is None
                     else SignalDirection(context.position.direction.value)) if context.position_loaded else (
                         self._position_by_symbol.get(snapshot.symbol, SignalDirection.FLAT))
+
+        LOGGER.info(
+            "generate factor snapshot: symbol=%s trend_score_p=%s close=%s ema_12=%s ema_26=%s adx_14=%s rsi_14=%s "
+            "score_ema=%s score_dmi_adx=%s score_rsi=%s score_flow=%s score_funding=%s position=%s current_history=%s",
+            snapshot.symbol,
+            snapshot.trend_score_p,
+            snapshot.close,
+            snapshot.ema_12,
+            snapshot.ema_26,
+            snapshot.adx_14,
+            snapshot.rsi_14,
+            snapshot.score_ema,
+            snapshot.score_dmi_adx,
+            snapshot.score_rsi,
+            snapshot.score_flow,
+            snapshot.score_funding,
+            position,
+            list(history),
+        )
 
         if position == SignalDirection.LONG:
             if self._should_exit_long(snapshot, history):
