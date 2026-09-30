@@ -8,6 +8,8 @@
 
 ## 系统架构
 
+进程与基础设施的部署关系见 [平台部署架构图](docs/deployment-architecture.md)。
+
 ```mermaid
 flowchart TD
     CH[ClickHouse 因子] --> S[strategy 策略]
@@ -320,8 +322,23 @@ bash stop.sh all
 | `POSITION_TRADE_ACTION_TOPIC` | `trade.action.requested.v1` |
 | `POSITION_TRADE_ACTION_FAILED_TOPIC` | `trade.action.failed.v1` |
 | `POSITION_ORDER_UPDATE_TIMEOUT_SECONDS` | `30.0` (legacy only; disabled in production workflow) |
+| `BINANCE_POSITION_RECONCILE_ENABLED` | `true` |
+| `BINANCE_POSITION_RECONCILE_ON_START` | `true` |
+| `BINANCE_POSITION_RECONCILE_INTERVAL_SECONDS` | `60.0` |
+| `BINANCE_POSITION_RECONCILE_TIMEOUT_SECONDS` | `10.0` |
 | `POSITION_REDIS_URL` | `redis://127.0.0.1:6379/0` |
 | `POSITION_EXECUTION_KEY_PREFIX` | `position:execution` |
+
+### Binance 真实仓位对账
+
+`position` 引擎现在支持在启动时和运行期间对 Binance 帐户真实持仓进行一次校准。这个机制解决了以下场景：程序离线期间你在 Binance 交易平台手动平仓/减仓，重启后本地状态仍保留旧仓位。
+
+- 启动时：默认执行一次 `GET /fapi/v2/account`，同步 `positionAmt` 并修正本地 Redis position state。
+- 运行期间：默认每 `60` 秒执行一次周期性对账，防止 WebSocket 中断、重连丢事件或手动操作造成的状态漂移。
+- 可关闭：设置 `BINANCE_POSITION_RECONCILE_ENABLED=false` 关闭全部对账逻辑。
+- 可禁用启动校准：设置 `BINANCE_POSITION_RECONCILE_ON_START=false`。
+
+此机制不是替代用户流事件，而是“状态恢复和长期一致性修正”的补充；它可以在进程重启后对齐真实账户状态，并在 Binance 事件流断开时降低本地 position drift。
 
 ### 交易引擎与 Binance 配置
 
@@ -382,13 +399,21 @@ PYTHONPATH=src python -B -m unittest discover -s tests/unit/workflow -v
 工作流测试使用内存 Redis 接口、模拟发布器和网关，覆盖重复输入、WATCH 冲突、ACK 后崩溃、结果保存失败、UNKNOWN 查询、回报竞争及迁移检查。
 这些测试不证明真实 Redis/Kafka 故障切换的持久性，也不代替 Binance 联调。完整测试套件中的显式实盘探针需单独配置。
 
+## 执行仓位均价与百分比平仓
+
+交易链路已记录 `entry_avg_price`、`cost_complete` 和 `opened_at`，通过成交累计金额维护成本。部分成交撤单保留持仓，部分平仓保留剩余仓位均价。
+
+可选设置 `STRATEGY_TAKE_PROFIT_PCT` / `STRATEGY_STOP_LOSS_PCT`（例如 `5` / `2` 表示 +5% / -2%）；默认关闭。启用后，已有仓位由百分比规则管理退出，参考价为因子快照 close，空仓仍使用原因子入场逻辑。未知成本不会触发价格退出，本版不增加加仓动作。
+
+配置、旧数据及部署边界见 [执行仓位成本与百分比平仓](docs/execution-cost-and-price-exits.md)。
+
 ## 实现状态与剩余工作
 
 已实现：仓位/交易 inbox 与 outbox、按分区手动提交、稳定客户端订单 ID、带租约的持久化任务、UNKNOWN 查询、活动订单匹配、累计成交差值、关联信息传递和执行/投影键空间隔离。
 
 仍需完善：
 
-- 部分成交后撤单的数量处理，以及网关 reduceOnly / positionSide 参数处理。
+- 持仓成本的历史回填、终态后缺失成本修补及双向持仓完整建模。
 - 风控启动加载权威持仓、快照完整性与新鲜度检查、全账户持仓/资金/成交对账。
 - 独立成交 ID 持久化账本、策略状态重建、源码默认凭据清理与轮换。
 - 真实服务集成与故障测试、死信处理、任务积压指标、UNKNOWN 报警和审计。

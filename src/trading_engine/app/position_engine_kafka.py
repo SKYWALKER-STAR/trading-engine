@@ -129,13 +129,21 @@ class PositionEngineMessageProcessor:
         if recovered is not None:
             LOGGER.warning(
                 "Recovered stale position transition before applying new risk decision",
-                extra={"symbol": payload.symbol, "reason": "order_timeout"},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": "order_timeout",
+                },
             )
 
         if payload.action is RiskAction.REJECT:
             LOGGER.info(
                 "Risk decision rejected; position state unchanged",
-                extra={"symbol": payload.symbol, "reason": payload.reason},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": payload.reason,
+                },
             )
             return
 
@@ -143,13 +151,21 @@ class PositionEngineMessageProcessor:
         if approved_signal is None:
             LOGGER.warning(
                 "Risk decision accepted without approved signal; ignoring",
-                extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": payload.reason,
+                },
             )
             return
 
         LOGGER.info(
             "Handling risk-approved signal",
-            extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+            extra={
+                "symbol": payload.symbol,
+                "action": payload.action.value,
+                "reason": payload.reason,
+            },
         )
         self._manager.handle_signal(
             _to_position_signal_command(
@@ -172,6 +188,8 @@ class PositionEngineMessageProcessor:
                 updated_at=payload.updated_at,
                 order_id=payload.order_id,
                 client_order_id=payload.client_order_id,
+                cumulative_filled_quote=payload.cumulative_filled_quote,
+                last_filled_price=payload.last_filled_price,
                 filled_quantity=payload.filled_quantity,
                 last_filled_quantity=payload.last_filled_quantity,
                 cumulative_filled_quantity=payload.cumulative_filled_quantity,
@@ -239,6 +257,9 @@ def _to_state_snapshot(state: Any) -> PositionStateSnapshot:
         direction=state.direction.value,
         lifecycle=state.lifecycle.value,
         quantity=state.quantity,
+        entry_avg_price=state.entry_avg_price,
+        cost_complete=state.cost_complete,
+        opened_at=state.opened_at,
         active_order_id=state.active_order_id,
         active_client_order_id=state.active_client_order_id,
         last_order_id=state.last_order_id,

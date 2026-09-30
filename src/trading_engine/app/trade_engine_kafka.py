@@ -380,8 +380,8 @@ def _to_trade_order_request(
     if "newOrderRespType" not in metadata:
         metadata["newOrderRespType"] = settings.binance_new_order_resp_type
 
-    if "reduceOnly" not in metadata and "risk_action" in metadata:
-        metadata["reduceOnly"] = "true" if str(metadata["risk_action"]).lower() == "reduce_only" else "false"
+    #if "reduceOnly" not in metadata and "risk_action" in metadata:
+    #    metadata["reduceOnly"] = "true" if str(metadata["risk_action"]).lower() == "reduce_only" else "false"
 
     if order_type == "limit":
         has_price = any(key in metadata for key in ("price",))

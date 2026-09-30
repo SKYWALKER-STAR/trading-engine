@@ -4,6 +4,9 @@ import argparse
 import json
 import time
 from datetime import UTC, datetime
+from dataclasses import replace
+from trading_engine.infra.redis_position_repository import RedisPositionRepository
+from trading_engine.position.repository import PositionRepository
 from typing import Any
 
 from trading_engine.app.bootstrap import build_strategy_engine
@@ -100,6 +103,7 @@ def evaluate_once(
     source: ClickHouseMarketDataSource,
     sink: KafkaSignalSink,
     symbol: str | None,
+    position_repository: PositionRepository | None = None,
 ) -> None:
     row = source.fetch_latest(symbol=symbol)
     if row is None:
@@ -108,6 +112,11 @@ def evaluate_once(
         return
 
     context = row_to_context(row)
+    if position_repository is not None:
+        # Read execution state, never the actual-position projection. Read failures
+        # abort evaluation instead of silently allowing another entry.
+        context = replace(context, position=position_repository.get(context.factor_snapshot.symbol),
+                          position_loaded=True)
 
     decision = engine.evaluate(context)
 
@@ -154,6 +163,13 @@ def run(argv: list[str] | None = None) -> None:
         settings=settings,
         publisher=None,
     )
+    position_repository = None
+    if settings.take_profit_pct is not None or settings.stop_loss_pct is not None:
+        position_repository = RedisPositionRepository.from_env()
+        if not position_repository._get_client().exists(
+            f"{position_repository._key_prefix}:{{{position_repository._account_id}}}:initialized"
+        ):
+            raise RuntimeError("Execution positions must be initialized before enabling price exits")
     source = ClickHouseMarketDataSource.from_env()
     sink = KafkaSignalSink.from_env(topic=settings.signal_topic)
 
@@ -169,11 +185,13 @@ def run(argv: list[str] | None = None) -> None:
     )
 
     if args.once or not args.stream:
-        evaluate_once(engine=engine, source=source, sink=sink, symbol=args.symbol)
+        evaluate_once(engine=engine, source=source, sink=sink, symbol=args.symbol,
+                      position_repository=position_repository)
         return
 
     while True:
-        evaluate_once(engine=engine, source=source, sink=sink, symbol=args.symbol)
+        evaluate_once(engine=engine, source=source, sink=sink, symbol=args.symbol,
+                      position_repository=position_repository)
         time.sleep(args.interval_seconds)
 
 

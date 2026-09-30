@@ -79,3 +79,5 @@ class TradeExecutionResult:
     client_order_id: str | None = None
     filled_quantity: float | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
+    cumulative_filled_quote: str | None = None
+    last_filled_price: str | None = None

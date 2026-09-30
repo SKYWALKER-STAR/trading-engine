@@ -108,6 +108,8 @@ class OrderUpdatePayload:
     event_time: datetime | None = None
     trade_time: datetime | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
+    cumulative_filled_quote: str | None = None
+    last_filled_price: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +124,9 @@ class PositionStateSnapshot:
     last_order_id: str | None = None
     last_client_order_id: str | None = None
     metadata: dict[str, str | float] = field(default_factory=dict)
+    entry_avg_price: str | None = None
+    cost_complete: bool = False
+    opened_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from trading_engine.config.settings import StrategyEngineSettings
 from trading_engine.infra.bus.base import EventBus
+from trading_engine.strategy.price_exit import PriceExitPolicy
 from trading_engine.strategy.engine import StrategyEngine
 from trading_engine.strategy.interfaces import StrategyAlgorithm
 from trading_engine.strategy.rules import ConfidenceFeatureRule, MarketDataFreshnessRule
@@ -21,4 +22,5 @@ def build_strategy_engine(
         rules=rules,
         publisher=publisher,
         signal_topic=settings.signal_topic,
+        price_exit=PriceExitPolicy(settings.take_profit_pct, settings.stop_loss_pct),
     )
