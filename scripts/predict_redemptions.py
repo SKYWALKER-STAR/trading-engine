@@ -80,6 +80,8 @@ class Rpc:
                 return body['result']
             except HTTPError as exc:
                 last_reason = f'HTTP {exc.code}'
+                if exc.code == 413 and method == 'eth_getLogs':
+                    raise RangeLimit('HTTP 413: log query range/payload rejected') from None
                 if exc.code not in (408, 429, 500, 502, 503, 504):
                     raise RpcError(f'{method}: HTTP {exc.code}; check RPC credentials/plan') from None
             except URLError as exc:

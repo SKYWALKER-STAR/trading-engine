@@ -144,3 +144,14 @@ def test_diagnose_writes_no_files(monkeypatch, tmp_path):
     monkeypatch.setenv('BSC_RPC_URL', 'https://rpc/SECRET')
     assert scanner.main(['--diagnose', '--output', str(tmp_path / 'out.json')]) == 0
     assert list(tmp_path.iterdir()) == []
+
+
+def test_413_is_range_limit_only_for_getlogs(monkeypatch):
+    def fail(*args, **kwargs):
+        raise scanner.HTTPError('https://rpc/SECRET', 413, 'SECRET', {}, None)
+    monkeypatch.setattr(scanner, 'urlopen', fail)
+    monkeypatch.setattr(scanner.time, 'sleep', lambda _: None)
+    with pytest.raises(scanner.RangeLimit, match='HTTP 413'):
+        scanner.Rpc('https://rpc/SECRET').call('eth_getLogs', [])
+    with pytest.raises(scanner.RpcError, match='HTTP 413'):
+        scanner.Rpc('https://rpc/SECRET').call('eth_call', [])
