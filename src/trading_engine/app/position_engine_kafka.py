@@ -129,13 +129,21 @@ class PositionEngineMessageProcessor:
         if recovered is not None:
             LOGGER.warning(
                 "Recovered stale position transition before applying new risk decision",
-                extra={"symbol": payload.symbol, "reason": "order_timeout"},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": "order_timeout",
+                },
             )
 
         if payload.action is RiskAction.REJECT:
             LOGGER.info(
                 "Risk decision rejected; position state unchanged",
-                extra={"symbol": payload.symbol, "reason": payload.reason},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": payload.reason,
+                },
             )
             return
 
@@ -143,13 +151,21 @@ class PositionEngineMessageProcessor:
         if approved_signal is None:
             LOGGER.warning(
                 "Risk decision accepted without approved signal; ignoring",
-                extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+                extra={
+                    "symbol": payload.symbol,
+                    "action": payload.action.value,
+                    "reason": payload.reason,
+                },
             )
             return
 
         LOGGER.info(
             "Handling risk-approved signal",
-            extra={"symbol": payload.symbol, "action": payload.action.value, "reason": payload.reason},
+            extra={
+                "symbol": payload.symbol,
+                "action": payload.action.value,
+                "reason": payload.reason,
+            },
         )
         self._manager.handle_signal(
             _to_position_signal_command(

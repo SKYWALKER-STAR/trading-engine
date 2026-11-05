@@ -34,9 +34,14 @@ class PositionEngineSettings:
     trade_action_topic: str = TopicNames.TRADE_ACTION_REQUESTED
     trade_action_failed_topic: str = TopicNames.TRADE_ACTION_FAILED
     order_update_timeout_seconds: float = 30.0
+    binance_position_reconcile_interval_seconds: float = 60.0
+    binance_position_reconcile_on_start: bool = True
+    binance_position_reconcile_enabled: bool = True
 
     @classmethod
     def from_env(cls) -> "PositionEngineSettings":
+        reconcile_enabled = getenv("BINANCE_POSITION_RECONCILE_ENABLED", "true").strip().lower()
+        reconcile_on_start = getenv("BINANCE_POSITION_RECONCILE_ON_START", "true").strip().lower()
         return cls(
             consumer_group=getenv("POSITION_ENGINE_CONSUMER_GROUP", "position-engine"),
             risk_decision_topic=getenv(
@@ -48,6 +53,11 @@ class PositionEngineSettings:
             trade_action_topic=getenv("POSITION_TRADE_ACTION_TOPIC", TopicNames.TRADE_ACTION_REQUESTED),
             trade_action_failed_topic=getenv("POSITION_TRADE_ACTION_FAILED_TOPIC", TopicNames.TRADE_ACTION_FAILED),
             order_update_timeout_seconds=float(getenv("POSITION_ORDER_UPDATE_TIMEOUT_SECONDS", "30.0")),
+            binance_position_reconcile_interval_seconds=float(
+                getenv("BINANCE_POSITION_RECONCILE_INTERVAL_SECONDS", "60.0")
+            ),
+            binance_position_reconcile_on_start=reconcile_on_start in ("1", "true", "yes", "on"),
+            binance_position_reconcile_enabled=reconcile_enabled in ("1", "true", "yes", "on"),
         )
 
 

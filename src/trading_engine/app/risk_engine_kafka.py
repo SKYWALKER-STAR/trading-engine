@@ -18,6 +18,8 @@ from trading_engine.contracts.messages import (
     build_event,
 )
 from trading_engine.infra.kafka_event_bus import KafkaEventConsumer, KafkaEventPublisher
+from trading_engine.infra.redis_position_repository import RedisPositionRepository
+from trading_engine.position.models import PositionState
 
 
 LOGGER = get_logger(__name__)
@@ -32,10 +34,12 @@ class RiskEngineMessageProcessor:
         settings: RiskEngineSettings,
         *,
         producer_name: str = "risk-engine",
+        repository: Any | None = None,
     ) -> None:
         self._publisher = publisher
         self._settings = settings
         self._producer_name = producer_name
+        self._repository = repository
         self._positions: dict[str, PositionStateSnapshot] = {}
 
     def handle_position_state(self, event: EngineEvent[Any]) -> None:
@@ -59,7 +63,7 @@ class RiskEngineMessageProcessor:
             raise ValueError(f"Unexpected event type: {event.event_type.value}")
 
         payload = cast(StrategySignalPayload, event.payload)
-        position = self._positions.get(payload.symbol)
+        position = self._resolve_position(payload.symbol)
         decision = self._decide(payload, position)
 
         risk_event = build_event(
@@ -71,6 +75,52 @@ class RiskEngineMessageProcessor:
             causation_id=event.event_id,
         )
         self._publisher.publish(self._settings.risk_decision_topic, risk_event, key=payload.symbol)
+
+    def _resolve_position(self, symbol: str) -> PositionStateSnapshot | None:
+        if self._repository is not None:
+            state = self._repository.get(symbol)
+            if state is not None:
+                LOGGER.debug(
+                    "Using Redis-backed position state as source of truth",
+                    extra={
+                        "symbol": symbol,
+                        "direction": state.direction.value,
+                        "lifecycle": state.lifecycle.value,
+                        "quantity": state.quantity,
+                    },
+                )
+                return self._to_snapshot(state)
+
+        cached = self._positions.get(symbol)
+        if cached is not None:
+            LOGGER.debug(
+                "Using cached Kafka position snapshot",
+                extra={
+                    "symbol": symbol,
+                    "direction": cached.direction,
+                    "lifecycle": cached.lifecycle,
+                    "quantity": cached.quantity,
+                },
+            )
+        return cached
+
+    @staticmethod
+    def _to_snapshot(state: PositionState) -> PositionStateSnapshot:
+        return PositionStateSnapshot(
+            symbol=state.symbol,
+            direction=state.direction.value,
+            lifecycle=state.lifecycle.value,
+            quantity=state.quantity,
+            active_order_id=state.active_order_id,
+            updated_at=state.updated_at,
+            active_client_order_id=state.active_client_order_id,
+            last_order_id=state.last_order_id,
+            last_client_order_id=state.last_client_order_id,
+            metadata=dict(state.metadata),
+            entry_avg_price=state.entry_avg_price,
+            cost_complete=state.cost_complete,
+            opened_at=state.opened_at,
+        )
 
     def _decide(
         self,
@@ -249,6 +299,7 @@ def build_risk_engine_consumer(
         publisher=publisher,
         settings=settings,
         producer_name=producer_name,
+        repository=RedisPositionRepository.from_env(),
     )
 
     consumer = KafkaEventConsumer.from_env(group_id=settings.consumer_group)
