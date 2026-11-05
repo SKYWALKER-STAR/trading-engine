@@ -59,6 +59,25 @@ $env:BSC_RPC_URL = 'https://你的BSC-RPC地址/你的密钥'
 
 ## 验证
 
+### RPC 报错排查
+
+先运行只读诊断，不会生成导出文件，也不受旧的输出文件影响：
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\predict_redemptions.py --diagnose --chunk-size 1000 --timeout 60 --retries 2 --request-delay 1
+```
+
+依次检查主网连接、最近单区块、起始历史单区块、指定大小的第一段日志请求。零条日志也是正常响应，不代表错误；这些探测不能证明服务商完整保留全部历史。
+
+- `HTTP 429` / `provider limit`：服务商限流、额度或资源限制；增大 `--request-delay`，检查套餐额度。
+- 单区块成功、整段失败：缩小 `--chunk-size`，例如 100 或 1000。
+- `Request timeout` / HTTP 504：超时；先缩小区块范围，再适当增加 `--timeout`。
+- `DNS` / `TLS` / `Network`：检查网络、代理及证书配置。不要关闭 TLS 校验。
+- HTTP 401/403：检查 RPC URL、密钥、白名单及权限。
+- 最近区块成功、历史单区块失败：检查历史日志访问支持和套餐限制。
+
+错误只显示分类、状态码和重试次数，不输出完整 RPC URL、服务商响应正文或密钥。正式重新运行需选新 `--output` 文件名，保留旧进度文件供复核。
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/unit/test_predict_redemptions.py -q
 ```

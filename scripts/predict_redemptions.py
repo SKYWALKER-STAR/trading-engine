@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 import re
+import socket
+import ssl
 import sys
 import time
 from datetime import datetime, timezone
@@ -49,11 +51,15 @@ class Rpc:
         request = Request(self.url, data=json.dumps({
             'jsonrpc': '2.0', 'id': self.counter, 'method': method, 'params': params,
         }).encode(), headers={'Content-Type': 'application/json', 'User-Agent': 'PredictRedemptions/1'})
+        last_reason = 'unknown failure'
         for attempt in range(self.retries):
+            last_reason = 'unknown failure'
             time.sleep(self.delay)
             try:
                 with urlopen(request, timeout=self.timeout) as response:
                     body = json.load(response)
+                if not isinstance(body, dict):
+                    raise RpcError(f'{method}: invalid JSON-RPC response object')
                 if 'error' in body:
                     error = body['error']
                     message = str(error.get('message', '')).lower()
@@ -65,20 +71,40 @@ class Rpc:
                     if method == 'eth_getLogs' and any(t in message for t in range_terms):
                         raise RangeLimit('RPC log range/result limit')
                     if error.get('code') in (-32005, -32016) or 'rate limit' in message or 'too many requests' in message:
-                        raise TimeoutError('RPC temporarily limited')
+                        last_reason = f'JSON-RPC code {error.get("code")}: provider limit (rate/quota/resources)'
+                        raise TimeoutError()
                     raise RpcError(f'{method}: JSON-RPC error code {error.get("code")}; '
                                    'check provider permissions/history/log support')
                 if 'result' not in body:
                     raise RpcError(f'{method}: missing result')
                 return body['result']
             except HTTPError as exc:
+                last_reason = f'HTTP {exc.code}'
                 if exc.code not in (408, 429, 500, 502, 503, 504):
                     raise RpcError(f'{method}: HTTP {exc.code}; check RPC credentials/plan') from None
-            except (URLError, TimeoutError, OSError, ValueError):
-                pass
+            except URLError as exc:
+                cause = exc.reason
+                if isinstance(cause, socket.gaierror):
+                    last_reason = 'DNS resolution failed'
+                elif isinstance(cause, ssl.SSLError):
+                    last_reason = 'TLS/certificate connection failed'
+                elif isinstance(cause, TimeoutError):
+                    last_reason = f'Connection timeout ({self.timeout}s)'
+                else:
+                    last_reason = f'Network connection failed ({type(cause).__name__})'
+            except TimeoutError:
+                if not last_reason.startswith('JSON-RPC'):
+                    last_reason = f'Request timeout ({self.timeout}s)'
+            except ssl.SSLError:
+                last_reason = 'TLS/certificate connection failed'
+            except OSError as exc:
+                last_reason = f'Network I/O failed ({type(exc).__name__}, errno={exc.errno})'
+            except ValueError:
+                last_reason = 'Invalid JSON response (possibly gateway/proxy page)'
+            print(f'{method}: attempt {attempt + 1}/{self.retries}: {last_reason}', file=sys.stderr)
             if attempt + 1 < self.retries:
                 time.sleep(min(2 ** attempt, 15))
-        raise RpcError(f'{method}: failed after {self.retries} attempts; no range was skipped')
+        raise RpcError(f'{method}: failed after {self.retries} attempts; last error: {last_reason}; no range was skipped')
 
 
 def address(value):
@@ -267,25 +293,51 @@ def main(argv=None):
     parser.add_argument('--result-cap', type=int, default=1000, help='Split at this many logs; set to provider cap or lower')
     parser.add_argument('--trades-json', help='Optional local trades JSON for market names; never filters records')
     parser.add_argument('--output', default='predict-redemptions.json')
+    parser.add_argument('--timeout', type=float, default=45, help='Seconds per RPC request')
+    parser.add_argument('--retries', type=int, default=4)
+    parser.add_argument('--request-delay', type=float, default=0.15, help='Seconds between RPC requests')
+    parser.add_argument('--diagnose', action='store_true', help='Probe recent and start-block log access; no export files written')
     args = parser.parse_args(argv)
     url = os.environ.get(args.rpc_env, '')
     if not url.startswith(('https://', 'http://')):
         parser.error(f'Set {args.rpc_env} to a BSC RPC URL supporting historical eth_getLogs')
     if args.from_block < 0 or args.confirmations < 0 or args.chunk_size <= 0 or args.result_cap <= 0:
         parser.error('Invalid block range, confirmations, chunk size or result cap')
+    if args.timeout <= 0 or args.retries <= 0 or args.request_delay < 0:
+        parser.error('Timeout/retries must be positive; delay must be nonnegative')
     output = Path(args.output).resolve()
-    if any(p.exists() for p in (output, output.with_suffix('.partial.jsonl'), output.with_suffix('.progress.json'))):
+    if not args.diagnose and any(p.exists() for p in (output, output.with_suffix('.partial.jsonl'), output.with_suffix('.progress.json'))):
         parser.error('Output or progress files already exist; choose a new --output path')
     try:
         account = address(args.account)
-        markets = load_markets(args.trades_json)
-        rpc = Rpc(url)
+        rpc = Rpc(url, timeout=args.timeout, retries=args.retries, delay=args.request_delay)
         if int(rpc.call('eth_chainId', []), 16) != 56:
             raise RpcError('RPC must be BNB Smart Chain mainnet (chain ID 56)')
         latest = int(rpc.call('eth_blockNumber', []), 16)
         end = args.to_block if args.to_block is not None else max(0, latest - args.confirmations)
         if not args.from_block <= end <= latest:
             raise ValueError('Invalid scan bounds; end must not exceed latest block')
+        if args.diagnose:
+            print(f'Connection OK; chain ID=56; latest={latest}; scan end={end}')
+            failures = 0
+            for label, first, last in [('recent single block', end, end),
+                                       ('historical start block', args.from_block, args.from_block),
+                                       ('configured first chunk', args.from_block, min(end, args.from_block + args.chunk_size - 1))]:
+                print(f'Probe: {label}, blocks {first}..{last}', flush=True)
+                try:
+                    logs = rpc.call('eth_getLogs', [{
+                        'fromBlock': hex(first), 'toBlock': hex(last), 'address': list(CONTRACTS),
+                        'topics': [[CTF_TOPIC, ADAPTER_TOPIC], '0x' + account[2:].rjust(64, '0')],
+                    }])
+                    if not isinstance(logs, list):
+                        raise RpcError('Invalid log result')
+                    print(f'OK: {len(logs)} logs (zero is a valid response)')
+                except RpcError as exc:
+                    failures += 1
+                    print(f'FAILED: {exc}')
+            print('Diagnostics only; these probes do not establish complete historical coverage.')
+            return 1 if failures else 0
+        markets = load_markets(args.trades_json)
         output.parent.mkdir(parents=True, exist_ok=True)
         records = collect(rpc, account, args.from_block, end, args.chunk_size, output, markets, args.result_cap)
         print(f'Complete: {len(records)} redemption events. Output: {output}')

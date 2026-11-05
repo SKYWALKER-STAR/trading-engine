@@ -116,3 +116,31 @@ def test_market_names_do_not_filter_records(tmp_path):
                                           'conditionId': '0xAB'}}]), encoding='utf-8-sig')
     assert scanner.load_markets(path)['0xab']['market_name'] == 'Example'
     assert scanner.units(2**256 - 1).replace('.', '').isdigit()
+
+
+@pytest.mark.parametrize('failure,expected', [
+    (scanner.HTTPError('https://rpc/SECRET', 429, 'SECRET', {}, None), 'HTTP 429'),
+    (scanner.URLError(scanner.socket.gaierror(-2, 'SECRET')), 'DNS resolution failed'),
+    (TimeoutError('SECRET'), 'Request timeout'),
+    (ValueError('SECRET'), 'Invalid JSON response'),
+])
+def test_rpc_diagnostic_preserves_category_without_secrets(monkeypatch, capsys, failure, expected):
+    def fail(*args, **kwargs):
+        raise failure
+    monkeypatch.setattr(scanner, 'urlopen', fail)
+    monkeypatch.setattr(scanner.time, 'sleep', lambda _: None)
+    with pytest.raises(scanner.RpcError, match=expected) as exc:
+        scanner.Rpc('https://rpc/SECRET', retries=2).call('eth_getLogs', [])
+    assert 'SECRET' not in str(exc.value) + capsys.readouterr().err
+
+
+def test_diagnose_writes_no_files(monkeypatch, tmp_path):
+    class ProbeRpc:
+        def __init__(self, *args, **kwargs):
+            pass
+        def call(self, method, params):
+            return {'eth_chainId': '0x38', 'eth_blockNumber': '0x100', 'eth_getLogs': []}[method]
+    monkeypatch.setattr(scanner, 'Rpc', ProbeRpc)
+    monkeypatch.setenv('BSC_RPC_URL', 'https://rpc/SECRET')
+    assert scanner.main(['--diagnose', '--output', str(tmp_path / 'out.json')]) == 0
+    assert list(tmp_path.iterdir()) == []
